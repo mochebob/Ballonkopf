@@ -177,7 +177,7 @@
 <body>
     <div id="canvas-container">
         <div class="loading">Lädt...</div>
-        <div class="instructions">Klicken und ziehen zum Drehen · Scrollen zum Zoomen</div>
+        <div class="instructions">Bewege die Maus über das Modell · Klicken und ziehen zum Drehen · Scrollen zum Zoomen</div>
     </div>
 
     <script type="importmap">
@@ -342,6 +342,24 @@
         const textureLoader = new THREE.TextureLoader();
         const loadedTextures = new Map();
 
+        // Jelly physics variables
+        let originalVertices = [];
+        let vertexVelocities = [];
+        let vertexTargets = [];
+        const mouse = new THREE.Vector2();
+        const raycaster = new THREE.Raycaster();
+        let jellyMesh = null;
+        const jellyStrength = 0.15; // How much vertices move
+        const jellySpringback = 0.08; // How fast they return
+        const jellyDamping = 0.92; // Friction
+        const jellyRadius = 0.3; // Influence radius
+
+        // Mouse tracking
+        window.addEventListener('mousemove', (event) => {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        });
+
         // Preload all textures
         hotspots.forEach((hotspot, index) => {
             textureLoader.load(hotspot.texture.image, (texture) => {
@@ -364,6 +382,83 @@
                 currentMaterial.metalness = newMetalness;
                 currentMaterial.needsUpdate = true;
             }
+        }
+
+        // Initialize jelly physics for a mesh
+        function initJellyPhysics(mesh) {
+            jellyMesh = mesh;
+            const geometry = mesh.geometry;
+            
+            // Store original vertex positions
+            const positions = geometry.attributes.position;
+            originalVertices = [];
+            vertexVelocities = [];
+            vertexTargets = [];
+            
+            for (let i = 0; i < positions.count; i++) {
+                originalVertices.push(new THREE.Vector3(
+                    positions.getX(i),
+                    positions.getY(i),
+                    positions.getZ(i)
+                ));
+                vertexVelocities.push(new THREE.Vector3());
+                vertexTargets.push(new THREE.Vector3());
+            }
+        }
+
+        // Update jelly physics
+        function updateJellyPhysics() {
+            if (!jellyMesh || originalVertices.length === 0) return;
+
+            // Cast ray from mouse
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObject(jellyMesh);
+
+            const geometry = jellyMesh.geometry;
+            const positions = geometry.attributes.position;
+
+            // Apply physics to each vertex
+            for (let i = 0; i < positions.count; i++) {
+                const vertex = new THREE.Vector3(
+                    positions.getX(i),
+                    positions.getY(i),
+                    positions.getZ(i)
+                );
+
+                // Convert to world space
+                const worldVertex = vertex.clone().applyMatrix4(jellyMesh.matrixWorld);
+
+                // Check if mouse is near this vertex
+                if (intersects.length > 0) {
+                    const intersectPoint = intersects[0].point;
+                    const distance = worldVertex.distanceTo(intersectPoint);
+
+                    if (distance < jellyRadius) {
+                        // Calculate push direction (away from intersection)
+                        const pushDir = worldVertex.clone().sub(intersectPoint).normalize();
+                        const force = (1 - distance / jellyRadius) * jellyStrength;
+                        
+                        // Add velocity
+                        vertexVelocities[i].add(pushDir.multiplyScalar(force));
+                    }
+                }
+
+                // Spring back to original position
+                const originalPos = originalVertices[i];
+                const diff = originalPos.clone().sub(vertex);
+                vertexVelocities[i].add(diff.multiplyScalar(jellySpringback));
+
+                // Apply damping
+                vertexVelocities[i].multiplyScalar(jellyDamping);
+
+                // Update position
+                vertex.add(vertexVelocities[i]);
+                
+                positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
+            }
+
+            positions.needsUpdate = true;
+            geometry.computeVertexNormals(); // Recalculate normals for proper lighting
         }
 
         hotspots.forEach((hotspot, index) => {
@@ -458,6 +553,10 @@
                 metalness: 0.1
             };
             scene.add(model);
+            
+            // Initialize jelly physics for fallback sphere
+            initJellyPhysics(model);
+            
             document.querySelector('.loading').style.display = 'none';
         };
 
@@ -477,12 +576,14 @@
                 model.scale.setScalar(scale);
                 model.position.sub(center.multiplyScalar(scale));
                 
-                // Setup material for texture changes
+                // Setup material for texture changes and find main mesh
+                let mainMesh = null;
                 model.traverse((child) => {
                     if (child.isMesh) {
                         if (!currentMaterial) {
                             // Store reference to first material found
                             currentMaterial = child.material;
+                            mainMesh = child;
                             
                             // Clone material to avoid affecting other meshes
                             child.material = child.material.clone();
@@ -496,6 +597,11 @@
                         }
                     }
                 });
+                
+                // Initialize jelly physics for the main mesh
+                if (mainMesh) {
+                    initJellyPhysics(mainMesh);
+                }
                 
                 scene.add(model);
                 document.querySelector('.loading').style.display = 'none';
@@ -548,6 +654,7 @@
         function animate() {
             requestAnimationFrame(animate);
             controls.update();
+            updateJellyPhysics(); // Update jelly deformation
             updateHotspots();
             renderer.render(scene, camera);
         }
@@ -556,3 +663,4 @@
     </script>
 </body>
 </html>
+
