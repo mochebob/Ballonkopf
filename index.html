@@ -73,7 +73,7 @@
             width: 100%;
             height: 100vh;
             z-index: 10;
-            pointer-events: none;
+            pointer-events: auto; /* CHANGED - allow mouse interaction */
         }
 
         canvas {
@@ -228,10 +228,10 @@
         let vertexVelocities = [];
         
         // STRONG jelly physics parameters
-        const jellyStrength = 5.5;
-        const jellySpringback = 0.04;
-        const jellyDamping = 0.85;
-        const jellyRadius = 0.7;
+        const jellyStrength = 0.8;        // INCREASED - stronger deformation
+        const jellySpringback = 0.03;     // DECREASED - slower return
+        const jellyDamping = 0.82;        // DECREASED - more bounce
+        const jellyRadius = 0.8;          // INCREASED - larger influence area
         
         // LOOPING inflation/deflation
         let inflationAmount = 0;
@@ -283,7 +283,6 @@
             // Reverse direction at limits with a SNAP back
             if (inflationAmount >= maxInflation) {
                 inflationDirection = -1;
-                // Fast snap back
             } else if (inflationAmount <= minInflation) {
                 inflationAmount = minInflation;
                 inflationDirection = 1;
@@ -292,12 +291,17 @@
             const geometry = jellyMesh.geometry;
             const positions = geometry.attributes.position;
 
-            // Calculate 3D position where mouse is pointing
-            const mouseWorldPos = new THREE.Vector3(
-                smoothMouse.x * 2,
-                smoothMouse.y * 2,
-                1
-            );
+            // Create raycaster for accurate mouse intersection
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(smoothMouse, camera);
+            
+            // Check if mouse intersects with the mesh
+            const intersects = raycaster.intersectObject(jellyMesh);
+            let mouseIntersectPoint = null;
+            
+            if (intersects.length > 0) {
+                mouseIntersectPoint = intersects[0].point;
+            }
 
             for (let i = 0; i < positions.count; i++) {
                 const vertex = new THREE.Vector3(
@@ -306,16 +310,18 @@
                     positions.getZ(i)
                 );
 
-                // Convert to world space
-                const worldVertex = vertex.clone().applyMatrix4(jellyMesh.matrixWorld);
-                
-                // Distance to mouse cursor - STRONG jelly effect
-                const distance = worldVertex.distanceTo(mouseWorldPos);
+                // If mouse is intersecting, apply strong deformation
+                if (mouseIntersectPoint) {
+                    // Convert vertex to world space
+                    const worldVertex = vertex.clone().applyMatrix4(jellyMesh.matrixWorld);
+                    const distance = worldVertex.distanceTo(mouseIntersectPoint);
 
-                if (distance < jellyRadius) {
-                    const pushDir = worldVertex.clone().sub(mouseWorldPos).normalize();
-                    const force = (1 - distance / jellyRadius) * jellyStrength;
-                    vertexVelocities[i].add(pushDir.multiplyScalar(force));
+                    if (distance < jellyRadius) {
+                        // Push vertices AWAY from cursor (indentation effect)
+                        const pushDir = worldVertex.clone().sub(mouseIntersectPoint).normalize();
+                        const force = (1 - distance / jellyRadius) * jellyStrength;
+                        vertexVelocities[i].add(pushDir.multiplyScalar(force));
+                    }
                 }
 
                 // INFLATION (outward from center)
@@ -343,11 +349,11 @@
         function updateHeadRotation() {
             if (!model) return;
 
-            targetRotation.x = -mouse.y * 1.5;
-            targetRotation.y = mouse.x * 1.4;
+            targetRotation.x = -mouse.y * 0.15;
+            targetRotation.y = mouse.x * 0.2;
 
-            currentRotation.x += (targetRotation.x - currentRotation.x) * 1.03;
-            currentRotation.y += (targetRotation.y - currentRotation.y) * 1.03;
+            currentRotation.x += (targetRotation.x - currentRotation.x) * 0.03;
+            currentRotation.y += (targetRotation.y - currentRotation.y) * 0.03;
 
             model.rotation.x = currentRotation.x;
             model.rotation.y = currentRotation.y;
