@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Portfolio</title>
+    <title>Moritz Sass - 3D Portfolio</title>
     <style>
         :root {
             --bg: #0a0a0a;
             --text: #f5f5f5;
-            --accent: #e8e8e8;
-            --hotspot: rgba(255, 255, 255, 0.9);
-            --hotspot-hover: rgba(255, 255, 255, 1);
+            --accent: #ffffff;
+            --border: rgba(255, 255, 255, 0.1);
         }
 
         * {
@@ -20,17 +19,21 @@
         }
 
         body {
-            font-family: 'Helvetica Neue', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background: var(--bg);
             color: var(--text);
-            overflow: hidden;
-            cursor: default;
+            overflow-x: hidden;
         }
 
-        #canvas-container {
-            width: 100vw;
+        /* 3D Scene Container */
+        #scene-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
             height: 100vh;
-            position: relative;
+            z-index: 1;
+            pointer-events: none;
         }
 
         canvas {
@@ -38,121 +41,113 @@
             outline: none;
         }
 
-        .hotspot {
-            position: absolute;
-            width: 16px;
-            height: 16px;
-            background: var(--hotspot);
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        /* Content Grid */
+        .content-wrapper {
+            position: relative;
             z-index: 10;
+            padding: 120px 40px 80px;
             pointer-events: auto;
         }
 
-        .hotspot::before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 32px;
-            height: 32px;
-            border: 1px solid var(--hotspot);
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        .hero {
+            text-align: center;
+            margin-bottom: 100px;
+            padding: 0 20px;
         }
 
-        .hotspot:hover {
-            background: var(--hotspot-hover);
-            transform: translate(-50%, -50%) scale(1.2);
-        }
-
-        @keyframes pulse {
-            0%, 100% {
-                opacity: 1;
-                transform: translate(-50%, -50%) scale(1);
-            }
-            50% {
-                opacity: 0;
-                transform: translate(-50%, -50%) scale(1.8);
-            }
-        }
-
-        .tooltip {
-            position: absolute;
-            background: rgba(10, 10, 10, 0.95);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 0;
-            border-radius: 2px;
-            pointer-events: none;
-            opacity: 0;
-            transform: translateY(10px);
-            transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-                        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            z-index: 100;
-            width: 280px;
-            overflow: hidden;
-            display: none; /* HIDDEN FOR NOW */
-        }
-
-        .tooltip.active {
-            opacity: 1;
-            transform: translateY(0);
-            pointer-events: auto;
-        }
-
-        .tooltip-image {
-            width: 100%;
-            height: 160px;
-            object-fit: cover;
-            display: block;
-        }
-
-        .tooltip-content {
-            padding: 20px;
-        }
-
-        .tooltip-title {
-            font-size: 16px;
-            font-weight: 400;
+        .hero h1 {
+            font-size: 48px;
+            font-weight: 300;
             letter-spacing: -0.02em;
-            margin-bottom: 8px;
-            color: var(--text);
+            margin-bottom: 20px;
+            line-height: 1.2;
         }
 
-        .tooltip-description {
-            font-size: 13px;
-            line-height: 1.5;
+        .hero p {
+            font-size: 18px;
             color: rgba(245, 245, 245, 0.6);
-            margin-bottom: 16px;
+            font-weight: 300;
         }
 
-        .tooltip-button {
-            display: inline-block;
-            padding: 8px 16px;
-            background: var(--accent);
-            color: var(--bg);
+        .hero a {
+            color: var(--accent);
             text-decoration: none;
-            font-size: 12px;
-            font-weight: 500;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-            border-radius: 1px;
-            transition: all 0.2s ease;
-            border: none;
-            cursor: pointer;
+            border-bottom: 1px solid var(--accent);
+            transition: opacity 0.2s;
         }
 
-        .tooltip-button:hover {
-            background: var(--text);
-            transform: translateY(-1px);
+        .hero a:hover {
+            opacity: 0.7;
+        }
+
+        /* Project Grid */
+        .projects-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .project-card {
+            position: relative;
+            aspect-ratio: 4/3;
+            overflow: hidden;
+            background: rgba(20, 20, 20, 0.6);
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: transform 0.3s ease, border-color 0.3s ease;
+        }
+
+        .project-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .project-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.4s ease, opacity 0.3s ease;
+        }
+
+        .project-card:hover img {
+            transform: scale(1.05);
+            opacity: 0.8;
+        }
+
+        .project-info {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 25px;
+            background: linear-gradient(to top, rgba(10, 10, 10, 0.95), transparent);
+            transform: translateY(10px);
+            opacity: 0;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+
+        .project-card:hover .project-info {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .project-title {
+            font-size: 20px;
+            font-weight: 400;
+            margin-bottom: 5px;
+            letter-spacing: -0.01em;
+        }
+
+        .project-client {
+            font-size: 14px;
+            color: rgba(245, 245, 245, 0.5);
+            font-weight: 300;
         }
 
         .loading {
-            position: absolute;
+            position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
@@ -160,26 +155,164 @@
             letter-spacing: 0.1em;
             text-transform: uppercase;
             color: rgba(245, 245, 245, 0.5);
+            z-index: 100;
         }
 
-        .instructions {
-            position: absolute;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 12px;
-            letter-spacing: 0.05em;
-            color: rgba(245, 245, 245, 0.3);
+        /* Footer */
+        footer {
+            position: relative;
+            z-index: 10;
             text-align: center;
-            pointer-events: none;
+            padding: 60px 20px;
+            color: rgba(245, 245, 245, 0.4);
+            font-size: 14px;
+        }
+
+        footer a {
+            color: rgba(245, 245, 245, 0.6);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        footer a:hover {
+            color: var(--accent);
+        }
+
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 32px;
+            }
+
+            .projects-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+
+            .content-wrapper {
+                padding: 80px 20px 60px;
+            }
         }
     </style>
 </head>
 <body>
-    <div id="canvas-container">
-        <div class="loading">Lädt...</div>
-        <div class="instructions">Bewege die Maus über das Modell für Jelly-Effekt · Der Kopf bläst sich langsam auf</div>
+    <div id="scene-container">
+        <div class="loading">Lädt 3D Modell...</div>
     </div>
+
+    <div class="content-wrapper">
+        <div class="hero">
+            <h1>Hi, ich bin Moritz<br>Art Director / Motion Designer</h1>
+            <p>Schreib mir <a href="mailto:moritz.sass@mailbox.org">moritz.sass@mailbox.org</a> oder ruf mich an <a href="tel:+491744968052">0174 496 80 52</a></p>
+        </div>
+
+        <div class="projects-grid">
+            <a href="/work/private-lounge-amg" class="project-card">
+                <img src="https://images.squarespace-cdn.com/content/v1/605c5c2360260c0a927ba12e/1707903559186-1V5YKKNESUN26FKGT0XM/Ohne+Titel_1.gif" alt="Private Lounge">
+                <div class="project-info">
+                    <div class="project-title">Private Lounge</div>
+                    <div class="project-client">AMG / Syzygy</div>
+                </div>
+            </a>
+
+            <a href="/work/mymcdonalds-rewards" class="project-card">
+                <img src="https://images.squarespace-cdn.com/content/v1/605c5c2360260c0a927ba12e/1633507352994-GKKL3T0S804BC8WB8G2F/db50a7e6b9bae49a.gif" alt="MyMcDonald's Rewards">
+                <div class="project-info">
+                    <div class="project-title">MyMcDonald's Rewards</div>
+                    <div class="project-client">McDonald's / Deepblue</div>
+                </div>
+            </a>
+
+            <a href="/work/shatten-gift" class="project-card">
+                <img src="https://images.squarespace-cdn.com/content/v1/605c5c2360260c0a927ba12e/1695629291989-087AK7S2OFYV7SHNIG2X/%23.gif" alt="Shatten">
+                <div class="project-info">
+                    <div class="project-title">Shatten</div>
+                    <div class="project-client">Gift</div>
+                </div>
+            </a>
+
+            <a href="/work/mcdelivery" class="project-card">
+                <img src="https://images.squarespace-cdn.com/content/v1/605c5c2360260c0a927ba12e/1623834992119-IM191VM39Q1EXLXIL3YS/A002C024_210430_R0EZ_grading_preview_2021-05-10.000310.jpg" alt="McDelivery">
+                <div class="project-info">
+                    <div class="project-title">McDelivery</div>
+                    <div class="project-client">McDonald's / Deepblue</div>
+                </div>
+            </a>
+
+            <a href="/work/das-neue-normal" class="project-card">
+                <img src="https://images.squarespace-cdn.com/content/v1/605c5c2360260c0a927ba12e/1616698406547-PZAAXL6RZ0RNXNXAK3W4/lichtblick.png" alt="Das neue Normal">
+                <div class="project-info">
+                    <div class="project-title">Das neue Normal</div>
+                    <div class="project-client">LichtBlick</div>
+                </div>
+            </a>
+
+            <a href="/work/vertrautseltsam" class="project-card">
+                <img src="https://images.squarespace-cdn.com/content/v1/605c5c2360260c0a927ba12e/1707903931529-BCUEXASEKXT6E85BM51F/427710193_276554562123457_7195696897340489078_n.jpg" alt="Vertraut & Seltsam">
+                <div class="project-info">
+                    <div class="project-title">Vertraut & Seltsam</div>
+                    <div class="project-client">Depression im Kapitalismus</div>
+                </div>
+            </a>
+
+            <a href="/work/nachtdenken" class="project-card">
+                <img src="https://images.squarespace-cdn.com/content/v1/605c5c2360260c0a927ba12e/1616698515281-YT0IT3OXWRAF89FMAF7Z/nachtdenken.png" alt="Nachtdenken">
+                <div class="project-info">
+                    <div class="project-title">Nachtdenken</div>
+                    <div class="project-client">Jägermeister / LaRed</div>
+                </div>
+            </a>
+
+            <a href="/work/gestresst-und-rauschig" class="project-card">
+                <img src="https://images.squarespace-cdn.com/content/v1/605c5c2360260c0a927ba12e/1701956054735-HWZVBSWU4RYMMWC3XA0L/IMG_2360.PNG" alt="Gestresst und rauschig">
+                <div class="project-info">
+                    <div class="project-title">Gestresst und rauschig</div>
+                    <div class="project-client">Personal Work</div>
+                </div>
+            </a>
+
+            <a href="/work/future-is-an-attitude" class="project-card">
+                <img src="https://images.squarespace-cdn.com/content/v1/605c5c2360260c0a927ba12e/1616699778170-Q3E9J7LCH2JQIG73DE65/audi.png" alt="FutureIsAnAttitude">
+                <div class="project-info">
+                    <div class="project-title">#FutureIsAnAttitude</div>
+                    <div class="project-client">Audi / Thjnk</div>
+                </div>
+            </a>
+
+            <a href="/work/papajoes" class="project-card">
+                <img src="https://images.squarespace-cdn.com/content/v1/605c5c2360260c0a927ba12e/1616700339077-X6BQT4QWIFWYJHUYV448/papajoe.png" alt="Papa Joe's">
+                <div class="project-info">
+                    <div class="project-title">Papa Joe's</div>
+                    <div class="project-client">Edeka / Boom</div>
+                </div>
+            </a>
+
+            <a href="/work/imahybrid" class="project-card">
+                <img src="https://images.squarespace-cdn.com/content/v1/605c5c2360260c0a927ba12e/1616700958251-6MT4XXILA6K2SPZ44KUK/kia.png" alt="I'm a Hybrid">
+                <div class="project-info">
+                    <div class="project-title">I'm a Hybrid</div>
+                    <div class="project-client">KIA Niro / Jung von Matt</div>
+                </div>
+            </a>
+
+            <a href="/work/oh-opel" class="project-card">
+                <img src="https://images.squarespace-cdn.com/content/v1/605c5c2360260c0a927ba12e/1621949720534-UA4KYUVQ4ZN3Q98PQYF2/prt_400x400_1428998783-1-1-min.jpg" alt="OH!">
+                <div class="project-info">
+                    <div class="project-title">OH!</div>
+                    <div class="project-client">Opel / Scholz & Friends</div>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <footer>
+        <p>moritz.sass@mailbox.org · 0174 496 80 52</p>
+        <p>Bismarckstraße 82, 20253 Hamburg</p>
+        <p style="margin-top: 20px;">
+            <a href="https://www.instagram.com/teigpeitsche/" target="_blank">Instagram</a> · 
+            <a href="https://de.linkedin.com/in/moritz-sass-97b4604a" target="_blank">LinkedIn</a> · 
+            <a href="https://www.xing.com/profile/Moritz_Sass2" target="_blank">Xing</a>
+        </p>
+    </footer>
 
     <script type="importmap">
     {
@@ -192,12 +325,10 @@
 
     <script type="module">
         import * as THREE from 'three';
-        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
         // Scene setup
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x0a0a0a);
         
         const camera = new THREE.PerspectiveCamera(
             45,
@@ -215,26 +346,17 @@
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         renderer.toneMappingExposure = 1.2;
-        document.getElementById('canvas-container').appendChild(renderer.domElement);
-
-        // Controls
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
-        controls.enableZoom = true;
-        controls.enablePan = false;
-        controls.minDistance = 1.5;
-        controls.maxDistance = 5;
+        document.getElementById('scene-container').appendChild(renderer.domElement);
 
         // Lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
         scene.add(ambientLight);
 
-        const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
-        keyLight.position.set(2, 2, 2);
+        const keyLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        keyLight.position.set(2, 2, 3);
         scene.add(keyLight);
 
-        const fillLight = new THREE.DirectionalLight(0xffffff, 0.4);
+        const fillLight = new THREE.DirectionalLight(0xffffff, 0.6);
         fillLight.position.set(-2, 0, -1);
         scene.add(fillLight);
 
@@ -242,164 +364,42 @@
         rimLight.position.set(0, 2, -2);
         scene.add(rimLight);
 
-        // Hotspot data - 7 random positions on a head
-        const hotspots = [
-            {
-                position: { x: 0, y: 0.8, z: 0.5 }, // Forehead - adjusted
-                title: 'Projekt Alpha',
-                description: 'Innovative UI/UX Design für digitale Produkte',
-                image: 'https://images.unsplash.com/photo-1558655146-364adaf1fcc9?w=400&h=300&fit=crop',
-                link: '#projekt-alpha',
-                texture: {
-                    image: 'https://images.unsplash.com/photo-1557672172-298e090bd0f1?w=1024&h=1024&fit=crop', // Abstract red texture
-                    roughness: 0.3,
-                    metalness: 0.5
-                }
-            },
-            {
-                position: { x: 0.4, y: 0.5, z: 0.6 }, // Right eye area - adjusted
-                title: 'Brand Identity',
-                description: 'Komplettes Branding für moderne Startups',
-                image: 'https://images.unsplash.com/photo-1634942537034-2531766767d1?w=400&h=300&fit=crop',
-                link: '#brand-identity',
-                texture: {
-                    image: 'https://images.unsplash.com/photo-1567095761054-7a02e69e5c43?w=1024&h=1024&fit=crop', // Abstract teal texture
-                    roughness: 0.6,
-                    metalness: 0.2
-                }
-            },
-            {
-                position: { x: -0.4, y: 0.5, z: 0.6 }, // Left eye area - adjusted
-                title: 'Motion Design',
-                description: 'Animierte Grafiken und Explainer Videos',
-                image: 'https://images.unsplash.com/photo-1551434678-e076c223a692?w=400&h=300&fit=crop',
-                link: '#motion-design',
-                texture: {
-                    image: 'https://images.unsplash.com/photo-1553356084-58ef4a67b2a7?w=1024&h=1024&fit=crop', // Abstract gold texture
-                    roughness: 0.4,
-                    metalness: 0.7
-                }
-            },
-            {
-                position: { x: 0, y: 0.2, z: 0.7 }, // Nose - adjusted
-                title: 'Web Development',
-                description: 'Responsive Websites mit modernsten Technologien',
-                image: 'https://images.unsplash.com/photo-1547658719-da2b51169166?w=400&h=300&fit=crop',
-                link: '#web-development',
-                texture: {
-                    image: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=1024&h=1024&fit=crop', // Abstract purple texture
-                    roughness: 0.5,
-                    metalness: 0.3
-                }
-            },
-            {
-                position: { x: 0.5, y: 0, z: 0.4 }, // Right cheek - adjusted
-                title: '3D Visualisierung',
-                description: 'Realistische 3D Renderings und Animationen',
-                image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&h=300&fit=crop',
-                link: '#3d-visualisierung',
-                texture: {
-                    image: 'https://images.unsplash.com/photo-1557672199-6903afd4d16f?w=1024&h=1024&fit=crop', // Abstract cyan texture
-                    roughness: 0.2,
-                    metalness: 0.8
-                }
-            },
-            {
-                position: { x: -0.5, y: 0, z: 0.4 }, // Left cheek - adjusted
-                title: 'Photography',
-                description: 'Professionelle Produktfotografie und Retusche',
-                image: 'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=400&h=300&fit=crop',
-                link: '#photography',
-                texture: {
-                    image: 'https://images.unsplash.com/photo-1550859492-d5da9d8e45f3?w=1024&h=1024&fit=crop', // Abstract pink texture
-                    roughness: 0.7,
-                    metalness: 0.1
-                }
-            },
-            {
-                position: { x: 0, y: -0.3, z: 0.5 }, // Chin - adjusted
-                title: 'Consulting',
-                description: 'Strategieberatung für digitale Transformation',
-                image: 'https://images.unsplash.com/photo-1553877522-43269d4ea984?w=400&h=300&fit=crop',
-                link: '#consulting',
-                texture: {
-                    image: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1024&h=1024&fit=crop', // Abstract blue texture
-                    roughness: 0.5,
-                    metalness: 0.4
-                }
-            }
-        ];
-
-        // Create hotspot elements
-        const hotspotElements = [];
-        let activeTooltip = null;
+        // Variables
         let model = null;
-        let originalMaterial = null;
-        let currentMaterial = null;
-        let targetTexture = null;
-        let targetRoughness = null;
-        let targetMetalness = null;
-        let isTransitioning = false;
-        const textureLoader = new THREE.TextureLoader();
-        const loadedTextures = new Map();
-
-        // Jelly physics variables
+        let jellyMesh = null;
         let originalVertices = [];
         let vertexVelocities = [];
-        let vertexTargets = [];
-        const mouse = new THREE.Vector2();
-        const raycaster = new THREE.Raycaster();
-        let jellyMesh = null;
-        const jellyStrength = 0.35; // INCREASED - How much vertices move
-        const jellySpringback = 0.06; // DECREASED - How fast they return (slower)
-        const jellyDamping = 0.88; // DECREASED - Less friction = more bouncy
-        const jellyRadius = 0.5; // INCREASED - Larger influence radius
         
-        // Inflation variables
+        // Enhanced jelly physics parameters
+        const jellyStrength = 0.4;
+        const jellySpringback = 0.05;
+        const jellyDamping = 0.86;
+        const jellyRadius = 0.6;
+        
+        // Inflation
         let inflationAmount = 0;
-        let inflationSpeed = 0.0008; // How fast it inflates
-        let maxInflation = 0.3; // Maximum inflation (30% larger)
-
+        const inflationSpeed = 0.001;
+        const maxInflation = 0.35;
+        
         // Mouse tracking
+        const mouse = new THREE.Vector2();
+        const smoothMouse = new THREE.Vector2();
+        const targetRotation = new THREE.Vector2();
+        const currentRotation = new THREE.Vector2();
+        
         window.addEventListener('mousemove', (event) => {
             mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
         });
 
-        // Preload all textures
-        hotspots.forEach((hotspot, index) => {
-            textureLoader.load(hotspot.texture.image, (texture) => {
-                texture.colorSpace = THREE.SRGBColorSpace;
-                loadedTextures.set(index, texture);
-            });
-        });
-
-        // Material transition function with texture
-        function transitionMaterial(textureIndex, newRoughness, newMetalness) {
-            if (loadedTextures.has(textureIndex) && currentMaterial) {
-                targetTexture = loadedTextures.get(textureIndex);
-                targetRoughness = newRoughness;
-                targetMetalness = newMetalness;
-                isTransitioning = true;
-                
-                // Apply texture immediately for instant feedback
-                currentMaterial.map = targetTexture;
-                currentMaterial.roughness = newRoughness;
-                currentMaterial.metalness = newMetalness;
-                currentMaterial.needsUpdate = true;
-            }
-        }
-
-        // Initialize jelly physics for a mesh
+        // Initialize jelly physics
         function initJellyPhysics(mesh) {
             jellyMesh = mesh;
             const geometry = mesh.geometry;
             
-            // Store original vertex positions
             const positions = geometry.attributes.position;
             originalVertices = [];
             vertexVelocities = [];
-            vertexTargets = [];
             
             for (let i = 0; i < positions.count; i++) {
                 originalVertices.push(new THREE.Vector3(
@@ -408,27 +408,31 @@
                     positions.getZ(i)
                 ));
                 vertexVelocities.push(new THREE.Vector3());
-                vertexTargets.push(new THREE.Vector3());
             }
         }
 
-        // Update jelly physics
+        // Update jelly physics with cursor interaction
         function updateJellyPhysics() {
             if (!jellyMesh || originalVertices.length === 0) return;
+
+            // Smooth mouse movement
+            smoothMouse.lerp(mouse, 0.1);
 
             // Gradually increase inflation
             if (inflationAmount < maxInflation) {
                 inflationAmount += inflationSpeed;
             }
 
-            // Cast ray from mouse
-            raycaster.setFromCamera(mouse, camera);
-            const intersects = raycaster.intersectObject(jellyMesh);
-
             const geometry = jellyMesh.geometry;
             const positions = geometry.attributes.position;
 
-            // Apply physics to each vertex
+            // Calculate 3D position where mouse is pointing
+            const mouseWorldPos = new THREE.Vector3(
+                smoothMouse.x * 2,
+                smoothMouse.y * 2,
+                1
+            );
+
             for (let i = 0; i < positions.count; i++) {
                 const vertex = new THREE.Vector3(
                     positions.getX(i),
@@ -438,28 +442,23 @@
 
                 // Convert to world space
                 const worldVertex = vertex.clone().applyMatrix4(jellyMesh.matrixWorld);
+                
+                // Distance to mouse cursor (in 3D space)
+                const distance = worldVertex.distanceTo(mouseWorldPos);
 
-                // Check if mouse is near this vertex
-                if (intersects.length > 0) {
-                    const intersectPoint = intersects[0].point;
-                    const distance = worldVertex.distanceTo(intersectPoint);
-
-                    if (distance < jellyRadius) {
-                        // Calculate push direction (away from intersection)
-                        const pushDir = worldVertex.clone().sub(intersectPoint).normalize();
-                        const force = (1 - distance / jellyRadius) * jellyStrength;
-                        
-                        // Add velocity
-                        vertexVelocities[i].add(pushDir.multiplyScalar(force));
-                    }
+                if (distance < jellyRadius) {
+                    // Push away from cursor
+                    const pushDir = worldVertex.clone().sub(mouseWorldPos).normalize();
+                    const force = (1 - distance / jellyRadius) * jellyStrength;
+                    vertexVelocities[i].add(pushDir.multiplyScalar(force));
                 }
 
-                // Calculate inflation direction (outward from center)
+                // Inflation (outward from center)
                 const originalPos = originalVertices[i];
                 const inflationDir = originalPos.clone().normalize();
                 const inflatedPos = originalPos.clone().add(inflationDir.multiplyScalar(inflationAmount));
 
-                // Spring back to inflated position (not original)
+                // Spring back to inflated position
                 const diff = inflatedPos.clone().sub(vertex);
                 vertexVelocities[i].add(diff.multiplyScalar(jellySpringback));
 
@@ -468,95 +467,61 @@
 
                 // Update position
                 vertex.add(vertexVelocities[i]);
-                
                 positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
             }
 
             positions.needsUpdate = true;
-            geometry.computeVertexNormals(); // Recalculate normals for proper lighting
+            geometry.computeVertexNormals();
         }
 
-        hotspots.forEach((hotspot, index) => {
-            const dot = document.createElement('div');
-            dot.className = 'hotspot';
-            dot.dataset.index = index;
-            document.getElementById('canvas-container').appendChild(dot);
-            hotspotElements.push(dot);
+        // Head follows cursor rotation
+        function updateHeadRotation() {
+            if (!model) return;
 
-            // Create tooltip
-            const tooltip = document.createElement('div');
-            tooltip.className = 'tooltip';
-            tooltip.innerHTML = `
-                <img class="tooltip-image" src="${hotspot.image}" alt="${hotspot.title}">
-                <div class="tooltip-content">
-                    <div class="tooltip-title">${hotspot.title}</div>
-                    <div class="tooltip-description">${hotspot.description}</div>
-                    <a href="${hotspot.link}" class="tooltip-button">Mehr erfahren</a>
-                </div>
-            `;
-            document.getElementById('canvas-container').appendChild(tooltip);
+            // Target rotation based on mouse position
+            targetRotation.x = -mouse.y * 0.3;
+            targetRotation.y = mouse.x * 0.5;
 
-            dot.addEventListener('click', (e) => {
-                e.stopPropagation();
-                
-                // Change model texture only
-                if (model && currentMaterial) {
-                    const hotspotData = hotspots[index];
-                    transitionMaterial(
-                        index,
-                        hotspotData.texture.roughness,
-                        hotspotData.texture.metalness
-                    );
-                }
-            });
-        });
+            // Smooth lerp to target
+            currentRotation.x += (targetRotation.x - currentRotation.x) * 0.05;
+            currentRotation.y += (targetRotation.y - currentRotation.y) * 0.05;
 
-        // Tooltip functionality disabled for now
-        /*
-        // Close tooltip when clicking outside
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.hotspot') && !e.target.closest('.tooltip')) {
-                if (activeTooltip) {
-                    activeTooltip.classList.remove('active');
-                    activeTooltip = null;
-                }
-            }
-        });
-        */
+            model.rotation.x = currentRotation.x;
+            model.rotation.y = currentRotation.y;
+        }
 
-        // Load 3D model
-        const loader = new GLTFLoader();
-        
-        // Fallback: Create a simple head geometry if model is not available
+        // Fallback head with normal map
         const createFallbackHead = () => {
-            const geometry = new THREE.SphereGeometry(0.5, 64, 64);
+            const geometry = new THREE.SphereGeometry(0.5, 128, 128);
+            
+            // Create simple normal map for depth
+            const normalMap = new THREE.TextureLoader().load(
+                'https://threejs.org/examples/textures/water/Water_1_M_Normal.jpg'
+            );
+            
             const material = new THREE.MeshStandardMaterial({
                 color: 0xe8e8e8,
-                roughness: 0.7,
-                metalness: 0.1
+                roughness: 0.6,
+                metalness: 0.2,
+                normalMap: normalMap,
+                normalScale: new THREE.Vector2(0.5, 0.5)
             });
+            
             model = new THREE.Mesh(geometry, material);
-            currentMaterial = material;
-            originalMaterial = {
-                map: null,
-                roughness: 0.7,
-                metalness: 0.1
-            };
             scene.add(model);
             
-            // Initialize jelly physics for fallback sphere
             initJellyPhysics(model);
-            
             document.querySelector('.loading').style.display = 'none';
         };
 
-        // Try to load model - replace 'your-model.glb' with your actual model path
+        // Load GLTF model
+        const loader = new GLTFLoader();
         loader.load(
-            'your-model.glb', // REPLACE THIS with your model path
+            'your-model.glb', // REPLACE with your model path
             (gltf) => {
                 model = gltf.scene;
                 
-                // Center and scale model
+                // Center and scale
                 const box = new THREE.Box3().setFromObject(model);
                 const center = box.getCenter(new THREE.Vector3());
                 const size = box.getSize(new THREE.Vector3());
@@ -566,29 +531,27 @@
                 model.scale.setScalar(scale);
                 model.position.sub(center.multiplyScalar(scale));
                 
-                // Setup material for texture changes and find main mesh
+                // Find main mesh and add normal map
                 let mainMesh = null;
                 model.traverse((child) => {
-                    if (child.isMesh) {
-                        if (!currentMaterial) {
-                            // Store reference to first material found
-                            currentMaterial = child.material;
-                            mainMesh = child;
-                            
-                            // Clone material to avoid affecting other meshes
-                            child.material = child.material.clone();
-                            currentMaterial = child.material;
-                            
-                            originalMaterial = {
-                                map: child.material.map ? child.material.map.clone() : null,
-                                roughness: child.material.roughness,
-                                metalness: child.material.metalness
-                            };
+                    if (child.isMesh && !mainMesh) {
+                        mainMesh = child;
+                        
+                        // Clone material
+                        child.material = child.material.clone();
+                        
+                        // Add normal map if not present
+                        if (!child.material.normalMap) {
+                            const normalMap = new THREE.TextureLoader().load(
+                                'https://threejs.org/examples/textures/water/Water_1_M_Normal.jpg'
+                            );
+                            child.material.normalMap = normalMap;
+                            child.material.normalScale = new THREE.Vector2(0.3, 0.3);
+                            child.material.needsUpdate = true;
                         }
                     }
                 });
                 
-                // Initialize jelly physics for the main mesh
                 if (mainMesh) {
                     initJellyPhysics(mainMesh);
                 }
@@ -601,51 +564,23 @@
                 document.querySelector('.loading').textContent = `Lädt ${percent}%`;
             },
             (error) => {
-                console.log('Model not found, using fallback geometry');
+                console.log('Model not found, using fallback');
                 createFallbackHead();
             }
         );
-
-        // Update hotspot positions
-        function updateHotspots() {
-            if (!model) return;
-
-            hotspots.forEach((hotspot, index) => {
-                const vector = new THREE.Vector3(
-                    hotspot.position.x,
-                    hotspot.position.y,
-                    hotspot.position.z
-                );
-                
-                vector.applyMatrix4(model.matrixWorld);
-                vector.project(camera);
-
-                const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
-                const y = (-(vector.y) * 0.5 + 0.5) * window.innerHeight;
-
-                const element = hotspotElements[index];
-                element.style.left = x + 'px';
-                element.style.top = y + 'px';
-
-                // Hide hotspots that are behind the model
-                element.style.opacity = vector.z < 1 ? '1' : '0.3';
-            });
-        }
 
         // Handle window resize
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
-            updateHotspots();
         });
 
         // Animation loop
         function animate() {
             requestAnimationFrame(animate);
-            controls.update();
-            updateJellyPhysics(); // Update jelly deformation
-            updateHotspots();
+            updateJellyPhysics();
+            updateHeadRotation();
             renderer.render(scene, camera);
         }
 
