@@ -343,11 +343,11 @@
         function updateHeadRotation() {
             if (!model) return;
 
-            targetRotation.x = -mouse.y * 0.5;
-            targetRotation.y = mouse.x * 0.4;
+            targetRotation.x = -mouse.y * 1.5;
+            targetRotation.y = mouse.x * 1.4;
 
-            currentRotation.x += (targetRotation.x - currentRotation.x) * 0.03;
-            currentRotation.y += (targetRotation.y - currentRotation.y) * 0.03;
+            currentRotation.x += (targetRotation.x - currentRotation.x) * 1.03;
+            currentRotation.y += (targetRotation.y - currentRotation.y) * 1.03;
 
             model.rotation.x = currentRotation.x;
             model.rotation.y = currentRotation.y;
