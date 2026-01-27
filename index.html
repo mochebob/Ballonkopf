@@ -95,6 +95,7 @@
             z-index: 100;
             width: 280px;
             overflow: hidden;
+            display: none; /* HIDDEN FOR NOW */
         }
 
         .tooltip.active {
@@ -177,7 +178,7 @@
 <body>
     <div id="canvas-container">
         <div class="loading">Lädt...</div>
-        <div class="instructions">Bewege die Maus über das Modell · Klicken und ziehen zum Drehen · Scrollen zum Zoomen</div>
+        <div class="instructions">Bewege die Maus über das Modell für Jelly-Effekt · Der Kopf bläst sich langsam auf</div>
     </div>
 
     <script type="importmap">
@@ -349,10 +350,15 @@
         const mouse = new THREE.Vector2();
         const raycaster = new THREE.Raycaster();
         let jellyMesh = null;
-        const jellyStrength = 0.15; // How much vertices move
-        const jellySpringback = 0.08; // How fast they return
-        const jellyDamping = 0.92; // Friction
-        const jellyRadius = 0.3; // Influence radius
+        const jellyStrength = 0.35; // INCREASED - How much vertices move
+        const jellySpringback = 0.06; // DECREASED - How fast they return (slower)
+        const jellyDamping = 0.88; // DECREASED - Less friction = more bouncy
+        const jellyRadius = 0.5; // INCREASED - Larger influence radius
+        
+        // Inflation variables
+        let inflationAmount = 0;
+        let inflationSpeed = 0.0008; // How fast it inflates
+        let maxInflation = 0.3; // Maximum inflation (30% larger)
 
         // Mouse tracking
         window.addEventListener('mousemove', (event) => {
@@ -410,6 +416,11 @@
         function updateJellyPhysics() {
             if (!jellyMesh || originalVertices.length === 0) return;
 
+            // Gradually increase inflation
+            if (inflationAmount < maxInflation) {
+                inflationAmount += inflationSpeed;
+            }
+
             // Cast ray from mouse
             raycaster.setFromCamera(mouse, camera);
             const intersects = raycaster.intersectObject(jellyMesh);
@@ -443,9 +454,13 @@
                     }
                 }
 
-                // Spring back to original position
+                // Calculate inflation direction (outward from center)
                 const originalPos = originalVertices[i];
-                const diff = originalPos.clone().sub(vertex);
+                const inflationDir = originalPos.clone().normalize();
+                const inflatedPos = originalPos.clone().add(inflationDir.multiplyScalar(inflationAmount));
+
+                // Spring back to inflated position (not original)
+                const diff = inflatedPos.clone().sub(vertex);
                 vertexVelocities[i].add(diff.multiplyScalar(jellySpringback));
 
                 // Apply damping
@@ -484,7 +499,7 @@
             dot.addEventListener('click', (e) => {
                 e.stopPropagation();
                 
-                // Change model texture
+                // Change model texture only
                 if (model && currentMaterial) {
                     const hotspotData = hotspots[index];
                     transitionMaterial(
@@ -493,37 +508,11 @@
                         hotspotData.texture.metalness
                     );
                 }
-                
-                // Close previous tooltip
-                if (activeTooltip && activeTooltip !== tooltip) {
-                    activeTooltip.classList.remove('active');
-                }
-
-                // Toggle current tooltip
-                const isActive = tooltip.classList.contains('active');
-                tooltip.classList.toggle('active');
-                activeTooltip = isActive ? null : tooltip;
-
-                // Position tooltip
-                const rect = dot.getBoundingClientRect();
-                const tooltipRect = tooltip.getBoundingClientRect();
-                let left = rect.left + rect.width / 2 - tooltipRect.width / 2;
-                let top = rect.top - tooltipRect.height - 20;
-
-                // Keep tooltip in viewport
-                if (left < 10) left = 10;
-                if (left + tooltipRect.width > window.innerWidth - 10) {
-                    left = window.innerWidth - tooltipRect.width - 10;
-                }
-                if (top < 10) {
-                    top = rect.bottom + 20;
-                }
-
-                tooltip.style.left = left + 'px';
-                tooltip.style.top = top + 'px';
             });
         });
 
+        // Tooltip functionality disabled for now
+        /*
         // Close tooltip when clicking outside
         document.addEventListener('click', (e) => {
             if (!e.target.closest('.hotspot') && !e.target.closest('.tooltip')) {
@@ -533,6 +522,7 @@
                 }
             }
         });
+        */
 
         // Load 3D model
         const loader = new GLTFLoader();
@@ -663,4 +653,3 @@
     </script>
 </body>
 </html>
-
