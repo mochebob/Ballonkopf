@@ -248,49 +248,84 @@
                 title: 'Projekt Alpha',
                 description: 'Innovative UI/UX Design für digitale Produkte',
                 image: 'https://images.unsplash.com/photo-1558655146-364adaf1fcc9?w=400&h=300&fit=crop',
-                link: '#projekt-alpha'
+                link: '#projekt-alpha',
+                texture: {
+                    color: 0xff6b6b,
+                    roughness: 0.3,
+                    metalness: 0.5
+                }
             },
             {
                 position: { x: 0.25, y: 0.3, z: 0.35 }, // Right eye area
                 title: 'Brand Identity',
                 description: 'Komplettes Branding für moderne Startups',
                 image: 'https://images.unsplash.com/photo-1634942537034-2531766767d1?w=400&h=300&fit=crop',
-                link: '#brand-identity'
+                link: '#brand-identity',
+                texture: {
+                    color: 0x4ecdc4,
+                    roughness: 0.6,
+                    metalness: 0.2
+                }
             },
             {
                 position: { x: -0.25, y: 0.3, z: 0.35 }, // Left eye area
                 title: 'Motion Design',
                 description: 'Animierte Grafiken und Explainer Videos',
                 image: 'https://images.unsplash.com/photo-1551434678-e076c223a692?w=400&h=300&fit=crop',
-                link: '#motion-design'
+                link: '#motion-design',
+                texture: {
+                    color: 0xf7b731,
+                    roughness: 0.4,
+                    metalness: 0.7
+                }
             },
             {
                 position: { x: 0, y: 0, z: 0.4 }, // Nose
                 title: 'Web Development',
                 description: 'Responsive Websites mit modernsten Technologien',
                 image: 'https://images.unsplash.com/photo-1547658719-da2b51169166?w=400&h=300&fit=crop',
-                link: '#web-development'
+                link: '#web-development',
+                texture: {
+                    color: 0x5f27cd,
+                    roughness: 0.5,
+                    metalness: 0.3
+                }
             },
             {
                 position: { x: 0.35, y: -0.1, z: 0.2 }, // Right cheek
                 title: '3D Visualisierung',
                 description: 'Realistische 3D Renderings und Animationen',
                 image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&h=300&fit=crop',
-                link: '#3d-visualisierung'
+                link: '#3d-visualisierung',
+                texture: {
+                    color: 0x00d2d3,
+                    roughness: 0.2,
+                    metalness: 0.8
+                }
             },
             {
                 position: { x: -0.35, y: -0.1, z: 0.2 }, // Left cheek
                 title: 'Photography',
                 description: 'Professionelle Produktfotografie und Retusche',
                 image: 'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=400&h=300&fit=crop',
-                link: '#photography'
+                link: '#photography',
+                texture: {
+                    color: 0xff9ff3,
+                    roughness: 0.7,
+                    metalness: 0.1
+                }
             },
             {
                 position: { x: 0, y: -0.4, z: 0.3 }, // Chin
                 title: 'Consulting',
                 description: 'Strategieberatung für digitale Transformation',
                 image: 'https://images.unsplash.com/photo-1553877522-43269d4ea984?w=400&h=300&fit=crop',
-                link: '#consulting'
+                link: '#consulting',
+                texture: {
+                    color: 0x48dbfb,
+                    roughness: 0.5,
+                    metalness: 0.4
+                }
             }
         ];
 
@@ -298,6 +333,20 @@
         const hotspotElements = [];
         let activeTooltip = null;
         let model = null;
+        let originalMaterial = null;
+        let currentMaterial = null;
+        let targetColor = null;
+        let targetRoughness = null;
+        let targetMetalness = null;
+        let transitionProgress = 0;
+
+        // Material transition function
+        function transitionMaterial(newColor, newRoughness, newMetalness) {
+            targetColor = new THREE.Color(newColor);
+            targetRoughness = newRoughness;
+            targetMetalness = newMetalness;
+            transitionProgress = 0;
+        }
 
         hotspots.forEach((hotspot, index) => {
             const dot = document.createElement('div');
@@ -321,6 +370,16 @@
 
             dot.addEventListener('click', (e) => {
                 e.stopPropagation();
+                
+                // Change model texture
+                if (model && currentMaterial) {
+                    const hotspotData = hotspots[index];
+                    transitionMaterial(
+                        hotspotData.texture.color,
+                        hotspotData.texture.roughness,
+                        hotspotData.texture.metalness
+                    );
+                }
                 
                 // Close previous tooltip
                 if (activeTooltip && activeTooltip !== tooltip) {
@@ -374,6 +433,12 @@
                 metalness: 0.1
             });
             model = new THREE.Mesh(geometry, material);
+            currentMaterial = material;
+            originalMaterial = {
+                color: new THREE.Color(0xe8e8e8),
+                roughness: 0.7,
+                metalness: 0.1
+            };
             scene.add(model);
             document.querySelector('.loading').style.display = 'none';
         };
@@ -393,6 +458,21 @@
                 
                 model.scale.setScalar(scale);
                 model.position.sub(center.multiplyScalar(scale));
+                
+                // Setup material for texture changes
+                model.traverse((child) => {
+                    if (child.isMesh) {
+                        if (!currentMaterial) {
+                            // Store reference to first material found
+                            currentMaterial = child.material;
+                            originalMaterial = {
+                                color: child.material.color.clone(),
+                                roughness: child.material.roughness,
+                                metalness: child.material.metalness
+                            };
+                        }
+                    }
+                });
                 
                 scene.add(model);
                 document.querySelector('.loading').style.display = 'none';
@@ -445,6 +525,23 @@
         function animate() {
             requestAnimationFrame(animate);
             controls.update();
+            
+            // Smooth material transition
+            if (targetColor && currentMaterial && transitionProgress < 1) {
+                transitionProgress += 0.05; // Transition speed
+                
+                // Lerp colors and properties
+                currentMaterial.color.lerp(targetColor, 0.1);
+                currentMaterial.roughness += (targetRoughness - currentMaterial.roughness) * 0.1;
+                currentMaterial.metalness += (targetMetalness - currentMaterial.metalness) * 0.1;
+                
+                if (transitionProgress >= 1) {
+                    currentMaterial.color.copy(targetColor);
+                    currentMaterial.roughness = targetRoughness;
+                    currentMaterial.metalness = targetMetalness;
+                }
+            }
+            
             updateHotspots();
             renderer.render(scene, camera);
         }
