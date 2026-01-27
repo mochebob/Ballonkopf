@@ -3,15 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Moritz Sass - 3D Portfolio</title>
+    <title>Moritz Sass - Portfolio</title>
     <style>
-        :root {
-            --bg: #0a0a0a;
-            --text: #f5f5f5;
-            --accent: #ffffff;
-            --border: rgba(255, 255, 255, 0.1);
-        }
-
         * {
             margin: 0;
             padding: 0;
@@ -19,131 +12,73 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: var(--bg);
-            color: var(--text);
+            background: #000;
             overflow-x: hidden;
         }
 
-        /* 3D Scene Container */
+        /* Image Grid Background */
+        .image-grid {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            z-index: 1;
+        }
+
+        .grid-item {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .grid-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .grid-item a {
+            display: block;
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        .grid-item a::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.2);
+            transition: background 0.3s ease;
+            z-index: 1;
+        }
+
+        .grid-item a:hover::before {
+            background: rgba(0, 0, 0, 0.4);
+        }
+
+        /* 3D Scene on top */
         #scene-container {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100vh;
-            z-index: 1;
+            z-index: 10;
             pointer-events: none;
         }
 
         canvas {
             display: block;
             outline: none;
-        }
-
-        /* Content Grid */
-        .content-wrapper {
-            position: relative;
-            z-index: 10;
-            padding: 120px 40px 80px;
-            pointer-events: auto;
-        }
-
-        .hero {
-            text-align: center;
-            margin-bottom: 100px;
-            padding: 0 20px;
-        }
-
-        .hero h1 {
-            font-size: 48px;
-            font-weight: 300;
-            letter-spacing: -0.02em;
-            margin-bottom: 20px;
-            line-height: 1.2;
-        }
-
-        .hero p {
-            font-size: 18px;
-            color: rgba(245, 245, 245, 0.6);
-            font-weight: 300;
-        }
-
-        .hero a {
-            color: var(--accent);
-            text-decoration: none;
-            border-bottom: 1px solid var(--accent);
-            transition: opacity 0.2s;
-        }
-
-        .hero a:hover {
-            opacity: 0.7;
-        }
-
-        /* Project Grid */
-        .projects-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-            gap: 30px;
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-
-        .project-card {
-            position: relative;
-            aspect-ratio: 4/3;
-            overflow: hidden;
-            background: rgba(20, 20, 20, 0.6);
-            border: 1px solid var(--border);
-            cursor: pointer;
-            transition: transform 0.3s ease, border-color 0.3s ease;
-        }
-
-        .project-card:hover {
-            transform: translateY(-5px);
-            border-color: rgba(255, 255, 255, 0.3);
-        }
-
-        .project-card img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            transition: transform 0.4s ease, opacity 0.3s ease;
-        }
-
-        .project-card:hover img {
-            transform: scale(1.05);
-            opacity: 0.8;
-        }
-
-        .project-info {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            padding: 25px;
-            background: linear-gradient(to top, rgba(10, 10, 10, 0.95), transparent);
-            transform: translateY(10px);
-            opacity: 0;
-            transition: transform 0.3s ease, opacity 0.3s ease;
-        }
-
-        .project-card:hover .project-info {
-            transform: translateY(0);
-            opacity: 1;
-        }
-
-        .project-title {
-            font-size: 20px;
-            font-weight: 400;
-            margin-bottom: 5px;
-            letter-spacing: -0.01em;
-        }
-
-        .project-client {
-            font-size: 14px;
-            color: rgba(245, 245, 245, 0.5);
-            font-weight: 300;
         }
 
         .loading {
@@ -154,60 +89,87 @@
             font-size: 13px;
             letter-spacing: 0.1em;
             text-transform: uppercase;
-            color: rgba(245, 245, 245, 0.5);
+            color: rgba(255, 255, 255, 0.5);
             z-index: 100;
-        }
-
-        /* Footer */
-        footer {
-            position: relative;
-            z-index: 10;
-            text-align: center;
-            padding: 60px 20px;
-            color: rgba(245, 245, 245, 0.4);
-            font-size: 14px;
-        }
-
-        footer a {
-            color: rgba(245, 245, 245, 0.6);
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-
-        footer a:hover {
-            color: var(--accent);
+            font-family: -apple-system, sans-serif;
         }
 
         @media (max-width: 768px) {
-            .hero h1 {
-                font-size: 32px;
-            }
-
-            .projects-grid {
+            .image-grid {
                 grid-template-columns: 1fr;
-                gap: 20px;
-            }
-
-            .content-wrapper {
-                padding: 80px 20px 60px;
             }
         }
     </style>
 </head>
 <body>
-    <div id="scene-container">
-        <div class="loading">Lädt 3D Modell...</div>
+    <!-- Image Grid -->
+    <div class="image-grid">
+        <div class="grid-item">
+            <a href="/work/private-lounge-amg">
+                <img src="https://images.squarespace-cdn.com/content/v1/605c5c2360260c0a927ba12e/1707903559186-1V5YKKNESUN26FKGT0XM/Ohne+Titel_1.gif" alt="Private Lounge">
+            </a>
+        </div>
+        <div class="grid-item">
+            <a href="/work/mymcdonalds-rewards">
+                <img src="https://images.squarespace-cdn.com/content/v1/605c5c2360260c0a927ba12e/1633507352994-GKKL3T0S804BC8WB8G2F/db50a7e6b9bae49a.gif" alt="MyMcDonald's Rewards">
+            </a>
+        </div>
+        <div class="grid-item">
+            <a href="/work/shatten-gift">
+                <img src="https://images.squarespace-cdn.com/content/v1/605c5c2360260c0a927ba12e/1695629291989-087AK7S2OFYV7SHNIG2X/%23.gif" alt="Shatten">
+            </a>
+        </div>
+        <div class="grid-item">
+            <a href="/work/mcdelivery">
+                <img src="https://images.squarespace-cdn.com/content/v1/605c5c2360260c0a927ba12e/1623834992119-IM191VM39Q1EXLXIL3YS/A002C024_210430_R0EZ_grading_preview_2021-05-10.000310.jpg" alt="McDelivery">
+            </a>
+        </div>
+        <div class="grid-item">
+            <a href="/work/das-neue-normal">
+                <img src="https://images.squarespace-cdn.com/content/v1/605c5c2360260c0a927ba12e/1616698406547-PZAAXL6RZ0RNXNXAK3W4/lichtblick.png" alt="Das neue Normal">
+            </a>
+        </div>
+        <div class="grid-item">
+            <a href="/work/vertrautseltsam">
+                <img src="https://images.squarespace-cdn.com/content/v1/605c5c2360260c0a927ba12e/1707903931529-BCUEXASEKXT6E85BM51F/427710193_276554562123457_7195696897340489078_n.jpg" alt="Vertraut & Seltsam">
+            </a>
+        </div>
+        <div class="grid-item">
+            <a href="/work/nachtdenken">
+                <img src="https://images.squarespace-cdn.com/content/v1/605c5c2360260c0a927ba12e/1616698515281-YT0IT3OXWRAF89FMAF7Z/nachtdenken.png" alt="Nachtdenken">
+            </a>
+        </div>
+        <div class="grid-item">
+            <a href="/work/gestresst-und-rauschig">
+                <img src="https://images.squarespace-cdn.com/content/v1/605c5c2360260c0a927ba12e/1701956054735-HWZVBSWU4RYMMWC3XA0L/IMG_2360.PNG" alt="Gestresst und rauschig">
+            </a>
+        </div>
+        <div class="grid-item">
+            <a href="/work/future-is-an-attitude">
+                <img src="https://images.squarespace-cdn.com/content/v1/605c5c2360260c0a927ba12e/1616699778170-Q3E9J7LCH2JQIG73DE65/audi.png" alt="FutureIsAnAttitude">
+            </a>
+        </div>
+        <div class="grid-item">
+            <a href="/work/papajoes">
+                <img src="https://images.squarespace-cdn.com/content/v1/605c5c2360260c0a927ba12e/1616700339077-X6BQT4QWIFWYJHUYV448/papajoe.png" alt="Papa Joe's">
+            </a>
+        </div>
+        <div class="grid-item">
+            <a href="/work/imahybrid">
+                <img src="https://images.squarespace-cdn.com/content/v1/605c5c2360260c0a927ba12e/1616700958251-6MT4XXILA6K2SPZ44KUK/kia.png" alt="I'm a Hybrid">
+            </a>
+        </div>
+        <div class="grid-item">
+            <a href="/work/oh-opel">
+                <img src="https://images.squarespace-cdn.com/content/v1/605c5c2360260c0a927ba12e/1621949720534-UA4KYUVQ4ZN3Q98PQYF2/prt_400x400_1428998783-1-1-min.jpg" alt="OH!">
+            </a>
+        </div>
     </div>
 
-    <footer>
-        <p>moritz.sass@mailbox.org · 0174 496 80 52</p>
-        <p>Bismarckstraße 82, 20253 Hamburg</p>
-        <p style="margin-top: 20px;">
-            <a href="https://www.instagram.com/teigpeitsche/" target="_blank">Instagram</a> · 
-            <a href="https://de.linkedin.com/in/moritz-sass-97b4604a" target="_blank">LinkedIn</a> · 
-            <a href="https://www.xing.com/profile/Moritz_Sass2" target="_blank">Xing</a>
-        </p>
-    </footer>
+    <!-- 3D Head Scene -->
+    <div id="scene-container">
+        <div class="loading">Lädt...</div>
+    </div>
 
     <script type="importmap">
     {
@@ -226,12 +188,12 @@
         const scene = new THREE.Scene();
         
         const camera = new THREE.PerspectiveCamera(
-            45,
+            50,
             window.innerWidth / window.innerHeight,
             0.1,
             1000
         );
-        camera.position.set(0, 0, 3);
+        camera.position.set(0, 0, 2.5);
 
         const renderer = new THREE.WebGLRenderer({ 
             antialias: true,
@@ -244,19 +206,19 @@
         document.getElementById('scene-container').appendChild(renderer.domElement);
 
         // Lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
         scene.add(ambientLight);
 
-        const keyLight = new THREE.DirectionalLight(0xffffff, 1.5);
-        keyLight.position.set(2, 2, 3);
+        const keyLight = new THREE.DirectionalLight(0xffffff, 1.8);
+        keyLight.position.set(3, 3, 4);
         scene.add(keyLight);
 
-        const fillLight = new THREE.DirectionalLight(0xffffff, 0.6);
-        fillLight.position.set(-2, 0, -1);
+        const fillLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        fillLight.position.set(-3, 0, -2);
         scene.add(fillLight);
 
-        const rimLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        rimLight.position.set(0, 2, -2);
+        const rimLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        rimLight.position.set(0, 3, -3);
         scene.add(rimLight);
 
         // Variables
@@ -265,18 +227,20 @@
         let originalVertices = [];
         let vertexVelocities = [];
         
-        // Enhanced jelly physics parameters
-        const jellyStrength = 0.4;
-        const jellySpringback = 0.05;
-        const jellyDamping = 0.86;
-        const jellyRadius = 0.6;
+        // STRONG jelly physics parameters
+        const jellyStrength = 0.5;
+        const jellySpringback = 0.04;
+        const jellyDamping = 0.85;
+        const jellyRadius = 0.7;
         
-        // Inflation
+        // LOOPING inflation/deflation
         let inflationAmount = 0;
-        const inflationSpeed = 0.001;
-        const maxInflation = 0.35;
+        let inflationDirection = 1; // 1 = inflate, -1 = deflate
+        const inflationSpeed = 0.003; // Speed of inflation
+        const maxInflation = 2.5; // HUGE - fills entire screen
+        const minInflation = 0; // Back to normal
         
-        // Mouse tracking
+        // Mouse tracking for jelly effect
         const mouse = new THREE.Vector2();
         const smoothMouse = new THREE.Vector2();
         const targetRotation = new THREE.Vector2();
@@ -306,16 +270,23 @@
             }
         }
 
-        // Update jelly physics with cursor interaction
+        // Update jelly physics with LOOPING inflation
         function updateJellyPhysics() {
             if (!jellyMesh || originalVertices.length === 0) return;
 
             // Smooth mouse movement
             smoothMouse.lerp(mouse, 0.1);
 
-            // Gradually increase inflation
-            if (inflationAmount < maxInflation) {
-                inflationAmount += inflationSpeed;
+            // AUTOMATIC LOOPING INFLATION/DEFLATION
+            inflationAmount += inflationSpeed * inflationDirection;
+            
+            // Reverse direction at limits with a SNAP back
+            if (inflationAmount >= maxInflation) {
+                inflationDirection = -1;
+                // Fast snap back
+            } else if (inflationAmount <= minInflation) {
+                inflationAmount = minInflation;
+                inflationDirection = 1;
             }
 
             const geometry = jellyMesh.geometry;
@@ -338,17 +309,16 @@
                 // Convert to world space
                 const worldVertex = vertex.clone().applyMatrix4(jellyMesh.matrixWorld);
                 
-                // Distance to mouse cursor (in 3D space)
+                // Distance to mouse cursor - STRONG jelly effect
                 const distance = worldVertex.distanceTo(mouseWorldPos);
 
                 if (distance < jellyRadius) {
-                    // Push away from cursor
                     const pushDir = worldVertex.clone().sub(mouseWorldPos).normalize();
                     const force = (1 - distance / jellyRadius) * jellyStrength;
                     vertexVelocities[i].add(pushDir.multiplyScalar(force));
                 }
 
-                // Inflation (outward from center)
+                // INFLATION (outward from center)
                 const originalPos = originalVertices[i];
                 const inflationDir = originalPos.clone().normalize();
                 const inflatedPos = originalPos.clone().add(inflationDir.multiplyScalar(inflationAmount));
@@ -369,17 +339,15 @@
             geometry.computeVertexNormals();
         }
 
-        // Head follows cursor rotation
+        // Head follows cursor slightly
         function updateHeadRotation() {
             if (!model) return;
 
-            // Target rotation based on mouse position
-            targetRotation.x = -mouse.y * 0.3;
-            targetRotation.y = mouse.x * 0.5;
+            targetRotation.x = -mouse.y * 0.15;
+            targetRotation.y = mouse.x * 0.2;
 
-            // Smooth lerp to target
-            currentRotation.x += (targetRotation.x - currentRotation.x) * 0.05;
-            currentRotation.y += (targetRotation.y - currentRotation.y) * 0.05;
+            currentRotation.x += (targetRotation.x - currentRotation.x) * 0.03;
+            currentRotation.y += (targetRotation.y - currentRotation.y) * 0.03;
 
             model.rotation.x = currentRotation.x;
             model.rotation.y = currentRotation.y;
@@ -387,19 +355,18 @@
 
         // Fallback head with normal map
         const createFallbackHead = () => {
-            const geometry = new THREE.SphereGeometry(0.5, 128, 128);
+            const geometry = new THREE.SphereGeometry(0.6, 128, 128);
             
-            // Create simple normal map for depth
             const normalMap = new THREE.TextureLoader().load(
                 'https://threejs.org/examples/textures/water/Water_1_M_Normal.jpg'
             );
             
             const material = new THREE.MeshStandardMaterial({
-                color: 0xe8e8e8,
-                roughness: 0.6,
-                metalness: 0.2,
+                color: 0xffffff,
+                roughness: 0.5,
+                metalness: 0.3,
                 normalMap: normalMap,
-                normalScale: new THREE.Vector2(0.5, 0.5)
+                normalScale: new THREE.Vector2(0.6, 0.6)
             });
             
             model = new THREE.Mesh(geometry, material);
@@ -421,27 +388,25 @@
                 const center = box.getCenter(new THREE.Vector3());
                 const size = box.getSize(new THREE.Vector3());
                 const maxDim = Math.max(size.x, size.y, size.z);
-                const scale = 1.5 / maxDim;
+                const scale = 1.8 / maxDim;
                 
                 model.scale.setScalar(scale);
                 model.position.sub(center.multiplyScalar(scale));
                 
-                // Find main mesh and add normal map
+                // Find main mesh
                 let mainMesh = null;
                 model.traverse((child) => {
                     if (child.isMesh && !mainMesh) {
                         mainMesh = child;
-                        
-                        // Clone material
                         child.material = child.material.clone();
                         
-                        // Add normal map if not present
+                        // Add normal map
                         if (!child.material.normalMap) {
                             const normalMap = new THREE.TextureLoader().load(
                                 'https://threejs.org/examples/textures/water/Water_1_M_Normal.jpg'
                             );
                             child.material.normalMap = normalMap;
-                            child.material.normalScale = new THREE.Vector2(0.3, 0.3);
+                            child.material.normalScale = new THREE.Vector2(0.4, 0.4);
                             child.material.needsUpdate = true;
                         }
                     }
