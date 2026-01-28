@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Moritz Sass - Portfolio</title>
+    <title>Moritz Sass</title>
     <style>
         * {
             margin: 0;
@@ -14,12 +14,14 @@
         body {
             background: #000;
             overflow-x: hidden;
-            overflow-y: auto; /* Allow vertical scrolling */
+            overflow-y: auto;
         }
 
-        /* Image Grid Background */
+        /* ============================================
+           IMAGE GRID BACKGROUND
+           ============================================ */
         .image-grid {
-            position: relative; /* CHANGED from fixed to relative */
+            position: relative;
             width: 100%;
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -28,7 +30,7 @@
 
         .grid-item {
             width: 100%;
-            height: 60vh; /* FIXED HEIGHT - 60% of viewport */
+            height: 60vh; /* ANPASSEN: Höhe der Bilder (vh = viewport height) */
             overflow: hidden;
             position: relative;
         }
@@ -60,10 +62,12 @@
         }
 
         .grid-item a:hover::before {
-            background: rgba(0, 0, 0, 0.4);
+            background: rgba(0, 0, 0, 0.4); /* ANPASSEN: Dunkelheit beim Hover */
         }
 
-        /* 3D Scene on top */
+        /* ============================================
+           3D SCENE CONTAINER
+           ============================================ */
         #scene-container {
             position: fixed;
             top: 0;
@@ -71,7 +75,7 @@
             width: 100%;
             height: 100vh;
             z-index: 10;
-            pointer-events: auto; /* CHANGED - allow mouse interaction */
+            pointer-events: auto;
         }
 
         canvas {
@@ -92,15 +96,32 @@
             font-family: -apple-system, sans-serif;
         }
 
+        /* ============================================
+           INSTRUCTIONS (optional)
+           ============================================ */
+        .instructions {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 12px;
+            z-index: 100;
+            font-family: -apple-system, sans-serif;
+            text-align: center;
+        }
+
         @media (max-width: 768px) {
             .grid-item {
-                height: 50vh; /* Slightly smaller on mobile */
+                height: 50vh;
             }
         }
     </style>
 </head>
 <body>
-    <!-- Image Grid -->
+    <!-- ============================================
+         IMAGE GRID
+         ============================================ -->
     <div class="image-grid">
         <div class="grid-item">
             <a href="/work/private-lounge-amg">
@@ -164,9 +185,15 @@
         </div>
     </div>
 
-    <!-- 3D Head Scene -->
+    <!-- ============================================
+         3D SCENE
+         ============================================ -->
     <div id="scene-container">
-        <div class="loading">Lädt...</div>
+        <div class="loading">Lädt 3D Scene...</div>
+    </div>
+
+    <div class="instructions">
+        Bewege die Maus um das Objekt zu steuern · Scrolle für mehr Projekte
     </div>
 
     <script type="importmap">
@@ -181,18 +208,29 @@
     <script type="module">
         import * as THREE from 'three';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
 
-        // Scene setup
+        /* ============================================
+           SCENE SETUP
+           ============================================ */
         const scene = new THREE.Scene();
         
+        // KAMERA EINSTELLUNGEN
+        // fov: Field of View (35 = Portrait-like, 50 = Standard, 75 = Wide)
+        // aspect: Seitenverhältnis
+        // near/far: Clipping planes
         const camera = new THREE.PerspectiveCamera(
-            50,
+            45,  // ANPASSEN: Field of View (Weitwinkel vs Tele)
             window.innerWidth / window.innerHeight,
-            0.1,
-            1000
+            0.1, // Near clipping
+            1000 // Far clipping
         );
-        camera.position.set(0, 0, 2.5);
+        camera.position.set(0, 0, 3); // ANPASSEN: Kamera Position (x, y, z)
 
+        // RENDERER SETUP
         const renderer = new THREE.WebGLRenderer({ 
             antialias: true,
             alpha: true 
@@ -200,54 +238,124 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.2;
+        renderer.toneMappingExposure = 1.0; // ANPASSEN: Belichtung (0.5 = dunkel, 2.0 = hell)
+        renderer.shadowMap.enabled = true; // Schatten aktivieren
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Weiche Schatten
         document.getElementById('scene-container').appendChild(renderer.domElement);
 
-        // Lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-        scene.add(ambientLight);
+        /* ============================================
+           POST-PROCESSING: DEPTH OF FIELD (Bokeh)
+           ============================================ */
+        const composer = new EffectComposer(renderer);
+        composer.addPass(new RenderPass(scene, camera));
 
-        const keyLight = new THREE.DirectionalLight(0xffffff, 1.8);
-        keyLight.position.set(3, 3, 4);
-        scene.add(keyLight);
+        const bokehPass = new BokehPass(scene, camera, {
+            focus: 2.5,      // ANPASSEN: Fokus-Distanz (wo ist scharf?) 
+            aperture: 0.002, // ANPASSEN: Blende (0.001 = wenig Blur, 0.01 = viel Blur)
+            maxblur: 0.005   // ANPASSEN: Maximaler Blur-Radius
+        });
+        composer.addPass(bokehPass);
 
-        const fillLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        fillLight.position.set(-3, 0, -2);
+        /* ============================================
+           LIGHTING SETUP
+           ============================================ */
+        
+        // 1. HDRI ENVIRONMENT LIGHTING
+        // Lädt ein HDR Bild für realistische Umgebungsbeleuchtung
+        const rgbeLoader = new RGBELoader();
+        rgbeLoader.load(
+            'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/studio_small_08_1k.hdr', 
+            // ANPASSEN: Andere HDRs von https://polyhaven.com/hdris
+            // z.B. 'abandoned_parking_1k.hdr', 'christmas_photo_studio_1k.hdr'
+            (texture) => {
+                texture.mapping = THREE.EquirectangularReflectionMapping;
+                scene.environment = texture; // Automatische Reflexionen auf Objekten
+                // scene.background = texture; // Optional: Als Hintergrund (auskommentiert)
+                console.log('HDR Environment geladen');
+            },
+            undefined,
+            (error) => {
+                console.log('HDR konnte nicht geladen werden, nutze Fallback Lighting');
+                // Fallback: Einfaches Ambient Light
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+                scene.add(ambientLight);
+            }
+        );
+
+        // 2. SPOTLIGHT von vorne rechts
+        // Leuchtet nur einen Teil des Kopfes aus (heller in der Mitte)
+        const spotlight = new THREE.SpotLight(
+            0xffffff,  // ANPASSEN: Farbe (0xffffff = weiß, 0xff0000 = rot, etc.)
+            3.0,       // ANPASSEN: Intensität (1.0 = normal, 5.0 = sehr hell)
+            10,        // ANPASSEN: Reichweite (Distance)
+            Math.PI / 6, // ANPASSEN: Angle (PI/6 = 30°, PI/4 = 45°, PI/3 = 60°)
+            0.5,       // ANPASSEN: Penumbra (0 = harte Kante, 1 = weiche Kante)
+            1.0        // ANPASSEN: Decay (wie schnell Licht schwächer wird)
+        );
+        spotlight.position.set(2, 0.5, 3); // ANPASSEN: Position (x=rechts, y=oben, z=vorne)
+        spotlight.target.position.set(0, 0, 0); // ANPASSEN: Wohin der Spot zeigt
+        spotlight.castShadow = true; // Schatten werfen
+        spotlight.shadow.mapSize.width = 1024; // Shadow quality
+        spotlight.shadow.mapSize.height = 1024;
+        scene.add(spotlight);
+        scene.add(spotlight.target);
+
+        // Optional: Helper um Spotlight zu sehen (für Setup)
+        // const spotLightHelper = new THREE.SpotLightHelper(spotlight);
+        // scene.add(spotLightHelper);
+
+        // 3. FILL LIGHT (dezentes Gegenlicht)
+        const fillLight = new THREE.DirectionalLight(0xffffff, 0.3); // ANPASSEN: Intensität
+        fillLight.position.set(-2, 0, -1);
         scene.add(fillLight);
 
-        const rimLight = new THREE.DirectionalLight(0xffffff, 1.0);
-        rimLight.position.set(0, 3, -3);
-        scene.add(rimLight);
+        /* ============================================
+           CURSOR-GESTEUERTES COLLISION OBJEKT
+           ============================================ */
+        
+        // Erstelle eine Kugel die dem Cursor folgt
+        const cursorGeometry = new THREE.SphereGeometry(0.15, 32, 32); // ANPASSEN: Größe (0.15)
+        const cursorMaterial = new THREE.MeshStandardMaterial({
+            color: 0xff0000,      // ANPASSEN: Farbe (rot)
+            roughness: 0.3,
+            metalness: 0.7,
+            emissive: 0xff0000,   // Leuchtet leicht
+            emissiveIntensity: 0.3
+        });
+        const cursorSphere = new THREE.Mesh(cursorGeometry, cursorMaterial);
+        scene.add(cursorSphere);
 
-        // Variables
-        let model = null;
+        /* ============================================
+           VARIABLES & PHYSICS SETUP
+           ============================================ */
+        
+        let headModel = null;
         let jellyMesh = null;
         let originalVertices = [];
         let vertexVelocities = [];
         
-        // STRONG jelly physics parameters
-        const jellyStrength = 0.8;        // INCREASED - stronger deformation
-        const jellySpringback = 0.03;     // DECREASED - slower return
-        const jellyDamping = 0.82;        // DECREASED - more bounce
-        const jellyRadius = 0.8;          // INCREASED - larger influence area
+        // JELLY PHYSICS PARAMETERS
+        const jellyStrength = 1.2;       // ANPASSEN: Wie stark Vertices reagieren (0.5-2.0)
+        const jellySpringback = 0.04;    // ANPASSEN: Wie schnell zurück (0.01-0.1)
+        const jellyDamping = 0.85;       // ANPASSEN: Dämpfung (0.8-0.95)
+        const collisionRadius = 0.4;     // ANPASSEN: Wie groß die Kollisions-Reichweite ist
         
-        // LOOPING inflation/deflation
+        // INFLATION PARAMETERS
         let inflationAmount = 0;
-        let inflationDirection = 1; // 1 = inflate, -1 = deflate
-        const inflationSpeed = 0.003; // Speed of inflation
-        const maxInflation = 2.5; // HUGE - fills entire screen
-        const minInflation = 0; // Back to normal
+        let inflationDirection = 1;
+        const inflationSpeed = 0.002;    // ANPASSEN: Geschwindigkeit (0.001-0.005)
+        const maxInflation = 2.0;        // ANPASSEN: Maximale Größe (1.5-3.0)
+        const minInflation = 0;
         
-        // Mouse tracking for jelly effect
+        // MOUSE & SCROLL TRACKING
         const mouse = new THREE.Vector2();
         const smoothMouse = new THREE.Vector2();
         const targetRotation = new THREE.Vector2();
         const currentRotation = new THREE.Vector2();
-        
-        // Scroll tracking
         let scrollY = 0;
         let smoothScrollY = 0;
         
+        // Event Listeners
         window.addEventListener('scroll', () => {
             scrollY = window.scrollY;
         });
@@ -257,11 +365,14 @@
             mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
         });
 
-        // Initialize jelly physics
+        /* ============================================
+           JELLY PHYSICS INITIALIZATION
+           ============================================ */
         function initJellyPhysics(mesh) {
             jellyMesh = mesh;
             const geometry = mesh.geometry;
             
+            // Speichere Original-Vertex-Positionen
             const positions = geometry.attributes.position;
             originalVertices = [];
             vertexVelocities = [];
@@ -274,19 +385,29 @@
                 ));
                 vertexVelocities.push(new THREE.Vector3());
             }
+            
+            console.log(`Jelly Physics initialisiert mit ${positions.count} Vertices`);
         }
 
-        // Update jelly physics with LOOPING inflation
-        function updateJellyPhysics() {
+        /* ============================================
+           COLLISION DETECTION & JELLY WOBBLE
+           ============================================ */
+        function updateCollisionAndJelly() {
             if (!jellyMesh || originalVertices.length === 0) return;
 
             // Smooth mouse movement
             smoothMouse.lerp(mouse, 0.1);
 
-            // AUTOMATIC LOOPING INFLATION/DEFLATION
+            // Update cursor sphere position (folgt dem Cursor in 3D)
+            const cursorWorldPos = new THREE.Vector3(
+                smoothMouse.x * 2.5,  // ANPASSEN: Wie weit Cursor sich bewegt (X)
+                smoothMouse.y * 2.5,  // ANPASSEN: Wie weit Cursor sich bewegt (Y)
+                0.5                   // ANPASSEN: Tiefe des Cursors im Raum
+            );
+            cursorSphere.position.copy(cursorWorldPos);
+
+            // LOOPING INFLATION/DEFLATION
             inflationAmount += inflationSpeed * inflationDirection;
-            
-            // Reverse direction at limits with a SNAP back
             if (inflationAmount >= maxInflation) {
                 inflationDirection = -1;
             } else if (inflationAmount <= minInflation) {
@@ -297,18 +418,7 @@
             const geometry = jellyMesh.geometry;
             const positions = geometry.attributes.position;
 
-            // Create raycaster for accurate mouse intersection
-            const raycaster = new THREE.Raycaster();
-            raycaster.setFromCamera(smoothMouse, camera);
-            
-            // Check if mouse intersects with the mesh
-            const intersects = raycaster.intersectObject(jellyMesh);
-            let mouseIntersectPoint = null;
-            
-            if (intersects.length > 0) {
-                mouseIntersectPoint = intersects[0].point;
-            }
-
+            // Für jeden Vertex: Prüfe Kollision mit Cursor-Kugel
             for (let i = 0; i < positions.count; i++) {
                 const vertex = new THREE.Vector3(
                     positions.getX(i),
@@ -316,118 +426,133 @@
                     positions.getZ(i)
                 );
 
-                // If mouse is intersecting, apply strong deformation
-                if (mouseIntersectPoint) {
-                    // Convert vertex to world space
-                    const worldVertex = vertex.clone().applyMatrix4(jellyMesh.matrixWorld);
-                    const distance = worldVertex.distanceTo(mouseIntersectPoint);
+                // Konvertiere Vertex in World Space
+                const worldVertex = vertex.clone().applyMatrix4(jellyMesh.matrixWorld);
+                
+                // Berechne Distanz zur Cursor-Kugel
+                const distance = worldVertex.distanceTo(cursorWorldPos);
 
-                    if (distance < jellyRadius) {
-                        // Push vertices AWAY from cursor (indentation effect)
-                        const pushDir = worldVertex.clone().sub(mouseIntersectPoint).normalize();
-                        const force = (1 - distance / jellyRadius) * jellyStrength;
-                        vertexVelocities[i].add(pushDir.multiplyScalar(force));
-                    }
+                // KOLLISION: Wenn Cursor-Kugel nah genug ist
+                if (distance < collisionRadius) {
+                    // Drücke Vertices WEG vom Cursor (Wackelpudding-Effekt)
+                    const pushDir = worldVertex.clone().sub(cursorWorldPos).normalize();
+                    const force = (1 - distance / collisionRadius) * jellyStrength;
+                    
+                    // Konvertiere Push-Direction zurück in Local Space
+                    const worldToLocal = new THREE.Matrix4().copy(jellyMesh.matrixWorld).invert();
+                    pushDir.applyMatrix4(worldToLocal);
+                    pushDir.normalize();
+                    
+                    vertexVelocities[i].add(pushDir.multiplyScalar(force));
                 }
 
-                // INFLATION (outward from center)
+                // INFLATION (Kopf bläst sich auf)
                 const originalPos = originalVertices[i];
                 const inflationDir = originalPos.clone().normalize();
                 const inflatedPos = originalPos.clone().add(inflationDir.multiplyScalar(inflationAmount));
 
-                // Spring back to inflated position
+                // Spring-back zur aufgeblasenen Position
                 const diff = inflatedPos.clone().sub(vertex);
                 vertexVelocities[i].add(diff.multiplyScalar(jellySpringback));
 
-                // Apply damping
+                // Dämpfung (damit es nicht ewig wackelt)
                 vertexVelocities[i].multiplyScalar(jellyDamping);
 
-                // Update position
+                // Update Vertex Position
                 vertex.add(vertexVelocities[i]);
                 positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
             }
 
+            // Update Geometry
             positions.needsUpdate = true;
-            geometry.computeVertexNormals();
+            geometry.computeVertexNormals(); // Wichtig für korrektes Lighting
         }
 
-        // Head follows cursor AND scroll
+        /* ============================================
+           HEAD ROTATION (Cursor + Scroll)
+           ============================================ */
         function updateHeadRotation() {
-            if (!model) return;
+            if (!headModel) return;
 
             // Smooth scroll value
             smoothScrollY += (scrollY - smoothScrollY) * 0.05;
 
-            // Scroll-based rotation (Y-axis rotation as you scroll down)
-            const scrollRotation = (smoothScrollY / 1000) * Math.PI; // One full rotation per 1000px scroll
+            // Scroll-basierte Rotation (Y-Achse)
+            const scrollRotation = (smoothScrollY / 1000) * Math.PI; 
+            // ANPASSEN: /1000 = eine Drehung pro 1000px Scroll
+            // /500 = schneller, /2000 = langsamer
 
-            // Mouse-based rotation
-            targetRotation.x = -mouse.y * 0.15;
-            targetRotation.y = mouse.x * 0.2 + scrollRotation; // Add scroll rotation to Y-axis
+            // Mouse-basierte Rotation
+            targetRotation.x = -mouse.y * 0.15;  // ANPASSEN: Vertikale Drehung (0.05-0.5)
+            targetRotation.y = mouse.x * 0.2 + scrollRotation; // ANPASSEN: Horizontale Drehung
 
-            currentRotation.x += (targetRotation.x - currentRotation.x) * 0.03;
+            // Smooth Interpolation
+            currentRotation.x += (targetRotation.x - currentRotation.x) * 0.03; // ANPASSEN: Smoothness
             currentRotation.y += (targetRotation.y - currentRotation.y) * 0.03;
 
-            model.rotation.x = currentRotation.x;
-            model.rotation.y = currentRotation.y;
+            headModel.rotation.x = currentRotation.x;
+            headModel.rotation.y = currentRotation.y;
         }
 
-        // Fallback head with normal map
+        /* ============================================
+           FALLBACK HEAD (wenn kein Model geladen wird)
+           ============================================ */
         const createFallbackHead = () => {
-            const geometry = new THREE.SphereGeometry(0.6, 128, 128);
+            console.log('Erstelle Fallback Sphere...');
             
-            const normalMap = new THREE.TextureLoader().load(
-                'https://threejs.org/examples/textures/water/Water_1_M_Normal.jpg'
+            const geometry = new THREE.SphereGeometry(
+                0.6,   // ANPASSEN: Radius
+                128,   // Width Segments (höher = glatter)
+                128    // Height Segments
             );
             
             const material = new THREE.MeshStandardMaterial({
-                color: 0xffffff,
+                color: 0xe8e8e8,
                 roughness: 0.5,
-                metalness: 0.3,
-                normalMap: normalMap,
-                normalScale: new THREE.Vector2(0.6, 0.6)
+                metalness: 0.3
             });
             
-            model = new THREE.Mesh(geometry, material);
-            scene.add(model);
+            headModel = new THREE.Mesh(geometry, material);
+            headModel.castShadow = true;
+            headModel.receiveShadow = true;
+            scene.add(headModel);
             
-            initJellyPhysics(model);
+            initJellyPhysics(headModel);
             document.querySelector('.loading').style.display = 'none';
         };
 
-        // Load GLTF model
+        /* ============================================
+           LOAD 3D MODEL (GLB/GLTF)
+           ============================================ */
         const loader = new GLTFLoader();
         loader.load(
-            'your-model.glb', // REPLACE with your model path
+            'your-model.glb', // ANPASSEN: Pfad zu deinem 3D-Modell
             (gltf) => {
-                model = gltf.scene;
+                console.log('Model erfolgreich geladen!');
+                headModel = gltf.scene;
                 
-                // Center and scale
-                const box = new THREE.Box3().setFromObject(model);
+                // Center and scale model
+                const box = new THREE.Box3().setFromObject(headModel);
                 const center = box.getCenter(new THREE.Vector3());
                 const size = box.getSize(new THREE.Vector3());
                 const maxDim = Math.max(size.x, size.y, size.z);
-                const scale = 1.8 / maxDim;
+                const scale = 1.8 / maxDim; // ANPASSEN: Model-Größe
                 
-                model.scale.setScalar(scale);
-                model.position.sub(center.multiplyScalar(scale));
+                headModel.scale.setScalar(scale);
+                headModel.position.sub(center.multiplyScalar(scale));
                 
-                // Find main mesh
+                // Find main mesh for jelly physics
                 let mainMesh = null;
-                model.traverse((child) => {
+                headModel.traverse((child) => {
                     if (child.isMesh && !mainMesh) {
                         mainMesh = child;
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        
+                        // Clone material
                         child.material = child.material.clone();
                         
-                        // Add normal map
-                        if (!child.material.normalMap) {
-                            const normalMap = new THREE.TextureLoader().load(
-                                'https://threejs.org/examples/textures/water/Water_1_M_Normal.jpg'
-                            );
-                            child.material.normalMap = normalMap;
-                            child.material.normalScale = new THREE.Vector2(0.4, 0.4);
-                            child.material.needsUpdate = true;
-                        }
+                        console.log('Main Mesh gefunden:', child.name);
                     }
                 });
                 
@@ -435,7 +560,7 @@
                     initJellyPhysics(mainMesh);
                 }
                 
-                scene.add(model);
+                scene.add(headModel);
                 document.querySelector('.loading').style.display = 'none';
             },
             (progress) => {
@@ -443,27 +568,60 @@
                 document.querySelector('.loading').textContent = `Lädt ${percent}%`;
             },
             (error) => {
-                console.log('Model not found, using fallback');
+                console.log('Model nicht gefunden, nutze Fallback Sphere');
                 createFallbackHead();
             }
         );
 
-        // Handle window resize
+        /* ============================================
+           WINDOW RESIZE HANDLER
+           ============================================ */
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        // Animation loop
+        /* ============================================
+           ANIMATION LOOP
+           ============================================ */
         function animate() {
             requestAnimationFrame(animate);
-            updateJellyPhysics();
-            updateHeadRotation();
-            renderer.render(scene, camera);
+            
+            updateCollisionAndJelly();  // Kollision & Wackelpudding
+            updateHeadRotation();        // Rotation basierend auf Cursor/Scroll
+            
+            // Render mit Post-Processing (Depth of Field)
+            composer.render();
+            
+            // Falls du Post-Processing deaktivieren willst:
+            // renderer.render(scene, camera);
         }
 
         animate();
+
+        /* ============================================
+           DEBUGGING HELPERS (optional aktivieren)
+           ============================================ */
+        
+        // Axes Helper (zeigt X/Y/Z Achsen)
+        // const axesHelper = new THREE.AxesHelper(5);
+        // scene.add(axesHelper);
+        
+        // Grid Helper (Boden-Raster)
+        // const gridHelper = new THREE.GridHelper(10, 10);
+        // scene.add(gridHelper);
+        
+        // Stats (FPS Counter)
+        // import Stats from 'three/addons/libs/stats.module.js';
+        // const stats = new Stats();
+        // document.body.appendChild(stats.dom);
+        // In animate(): stats.update();
+        
+        console.log('3D Scene erfolgreich initialisiert!');
+        console.log('Bokeh Focus:', bokehPass.uniforms.focus.value);
+        console.log('Bokeh Aperture:', bokehPass.uniforms.aperture.value);
     </script>
 </body>
 </html>
