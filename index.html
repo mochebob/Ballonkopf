@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Moritz Sass</title>
+    <title>Moritz Sass - 3D Portfolio Advanced</title>
     <style>
         * {
             margin: 0;
@@ -252,7 +252,7 @@
         const bokehPass = new BokehPass(scene, camera, {
             focus: 0.5,      // ANPASSEN: Fokus-Distanz (wo ist scharf?) 
             aperture: 0.002, // ANPASSEN: Blende (0.001 = wenig Blur, 0.01 = viel Blur)
-            maxblur: 0.015   // ANPASSEN: Maximaler Blur-Radius
+            maxblur: 0.005   // ANPASSEN: Maximaler Blur-Radius
         });
         composer.addPass(bokehPass);
 
@@ -313,17 +313,62 @@
            CURSOR-GESTEUERTES COLLISION OBJEKT
            ============================================ */
         
-        // Erstelle eine Kugel die dem Cursor folgt
-        const cursorGeometry = new THREE.SphereGeometry(0.15, 32, 32); // ANPASSEN: Größe (0.15)
-        const cursorMaterial = new THREE.MeshStandardMaterial({
-            color: 0xff0000,      // ANPASSEN: Farbe (rot)
-            roughness: 0.3,
-            metalness: 0.7,
-            emissive: 0xff0000,   // Leuchtet leicht
-            emissiveIntensity: 0.3
-        });
-        const cursorSphere = new THREE.Mesh(cursorGeometry, cursorMaterial);
-        scene.add(cursorSphere);
+        // Variable für das Cursor-Objekt (wird später mit GLB gefüllt)
+        let cursorObject = null;
+
+        // LADE DEINE GURKE (oder anderes GLB Modell)
+        const cursorLoader = new GLTFLoader();
+        cursorLoader.load(
+            'gurke.glb', // ANPASSEN: Pfad zu deiner Gurke/Objekt
+            (gltf) => {
+                console.log('Cursor-Objekt (Gurke) geladen!');
+                cursorObject = gltf.scene;
+                
+                // ANPASSEN: Größe der Gurke
+                const scale = 0.2; // 0.1 = klein, 0.5 = groß
+                cursorObject.scale.setScalar(scale);
+                
+                // ANPASSEN: Rotation (falls Gurke falsch ausgerichtet ist)
+                // cursorObject.rotation.x = Math.PI / 2; // 90° drehen
+                // cursorObject.rotation.y = Math.PI / 4; // 45° drehen
+                
+                // Material anpassen (optional)
+                cursorObject.traverse((child) => {
+                    if (child.isMesh) {
+                        // ANPASSEN: Farbe/Material der Gurke
+                        // child.material = new THREE.MeshStandardMaterial({
+                        //     color: 0x00ff00, // Grün
+                        //     roughness: 0.5,
+                        //     metalness: 0.2
+                        // });
+                        
+                        // Leuchten hinzufügen (optional)
+                        child.material.emissive = new THREE.Color(0xff0000);
+                        child.material.emissiveIntensity = 0.3;
+                    }
+                });
+                
+                scene.add(cursorObject);
+            },
+            (progress) => {
+                console.log('Lade Cursor-Objekt:', (progress.loaded / progress.total * 100).toFixed(0) + '%');
+            },
+            (error) => {
+                console.log('Cursor-Objekt konnte nicht geladen werden, nutze Fallback Kugel');
+                
+                // FALLBACK: Wenn Gurke nicht geladen werden kann, zeige Kugel
+                const cursorGeometry = new THREE.SphereGeometry(0.15, 32, 32);
+                const cursorMaterial = new THREE.MeshStandardMaterial({
+                    color: 0xff0000,
+                    roughness: 0.3,
+                    metalness: 0.7,
+                    emissive: 0xff0000,
+                    emissiveIntensity: 0.3
+                });
+                cursorObject = new THREE.Mesh(cursorGeometry, cursorMaterial);
+                scene.add(cursorObject);
+            }
+        );
 
         /* ============================================
            VARIABLES & PHYSICS SETUP
@@ -341,7 +386,11 @@
         const collisionRadius = 0.4;     // ANPASSEN: Wie groß die Kollisions-Reichweite ist
         
         // INFLATION PARAMETERS
-   
+        let inflationAmount = 0;
+        let inflationDirection = 1;
+        const inflationSpeed = 0.002;    // ANPASSEN: Geschwindigkeit (0.001-0.005)
+        const maxInflation = 2.0;        // ANPASSEN: Maximale Größe (1.5-3.0)
+        const minInflation = 0;
         
         // MOUSE & SCROLL TRACKING
         const mouse = new THREE.Vector2();
@@ -390,17 +439,22 @@
            ============================================ */
         function updateCollisionAndJelly() {
             if (!jellyMesh || originalVertices.length === 0) return;
+            if (!cursorObject) return; // Warte bis Gurke geladen ist
 
             // Smooth mouse movement
             smoothMouse.lerp(mouse, 0.1);
 
-            // Update cursor sphere position (folgt dem Cursor in 3D)
+            // Update cursor object position (folgt dem Cursor in 3D)
             const cursorWorldPos = new THREE.Vector3(
                 smoothMouse.x * 2.5,  // ANPASSEN: Wie weit Cursor sich bewegt (X)
                 smoothMouse.y * 2.5,  // ANPASSEN: Wie weit Cursor sich bewegt (Y)
                 0.5                   // ANPASSEN: Tiefe des Cursors im Raum
             );
-            cursorSphere.position.copy(cursorWorldPos);
+            cursorObject.position.copy(cursorWorldPos);
+            
+            // ANPASSEN: Rotation der Gurke beim Bewegen (optional)
+            // cursorObject.rotation.y += 0.01; // Dreht sich kontinuierlich
+            // cursorObject.rotation.z = smoothMouse.x * 0.5; // Neigt sich mit Maus
 
             // LOOPING INFLATION/DEFLATION
             inflationAmount += inflationSpeed * inflationDirection;
@@ -414,7 +468,7 @@
             const geometry = jellyMesh.geometry;
             const positions = geometry.attributes.position;
 
-            // Für jeden Vertex: Prüfe Kollision mit Cursor-Kugel
+            // Für jeden Vertex: Prüfe Kollision mit Cursor-Objekt (Gurke)
             for (let i = 0; i < positions.count; i++) {
                 const vertex = new THREE.Vector3(
                     positions.getX(i),
@@ -425,12 +479,12 @@
                 // Konvertiere Vertex in World Space
                 const worldVertex = vertex.clone().applyMatrix4(jellyMesh.matrixWorld);
                 
-                // Berechne Distanz zur Cursor-Kugel
+                // Berechne Distanz zur Gurke
                 const distance = worldVertex.distanceTo(cursorWorldPos);
 
-                // KOLLISION: Wenn Cursor-Kugel nah genug ist
+                // KOLLISION: Wenn Gurke nah genug ist
                 if (distance < collisionRadius) {
-                    // Drücke Vertices WEG vom Cursor (Wackelpudding-Effekt)
+                    // Drücke Vertices WEG von der Gurke (Wackelpudding-Effekt)
                     const pushDir = worldVertex.clone().sub(cursorWorldPos).normalize();
                     const force = (1 - distance / collisionRadius) * jellyStrength;
                     
