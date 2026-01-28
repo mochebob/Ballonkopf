@@ -277,7 +277,9 @@
         document.getElementById('scene-container').appendChild(renderer.domElement);
 
         const composer = new EffectComposer(renderer);
-        composer.addPass(new RenderPass(scene, camera));
+const renderPass = new RenderPass(scene, camera);
+renderPass.clearAlpha = 0; // Transparent background für Composer
+composer.addPass(renderPass);
 
         const bloomPass = new UnrealBloomPass(
             new THREE.Vector2(window.innerWidth, window.innerHeight),
