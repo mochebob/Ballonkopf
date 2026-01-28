@@ -715,4 +715,16 @@
             // Kopf-zu-Kopf Kollision
             for (let i = 0; i < heads.length; i++) {
                 for (let j = i + 1; j < heads.length; j++) {
-                    checkHeadColl
+                    checkHeadCollision(heads[i], heads[j]);
+                }
+            }
+            
+            renderer.render(scene, camera);
+        }
+
+        animate();
+        
+        console.log('🚀 2D Schwerelosigkeits-System mit Anziehung aktiv!');
+    </script>
+</body>
+</html>
