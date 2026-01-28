@@ -288,8 +288,9 @@
 
         const renderer = new THREE.WebGLRenderer({ 
             antialias: true,
-            alpha: true 
+            alpha: true // Transparenter Hintergrund - WICHTIG!
         });
+        renderer.setClearColor(0x000000, 0); // TRANSPARENT - kein schwarzer Hintergrund
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -300,7 +301,10 @@
            POST-PROCESSING: Motion Blur für Gurke
            ============================================ */
         const composer = new EffectComposer(renderer);
-        composer.addPass(new RenderPass(scene, camera));
+        const renderPass = new RenderPass(scene, camera);
+        renderPass.clearColor = new THREE.Color(0, 0, 0);
+        renderPass.clearAlpha = 0; // Transparent
+        composer.addPass(renderPass);
 
         // Bloom für Leucht-Effekt (optional)
         const bloomPass = new UnrealBloomPass(
@@ -354,11 +358,11 @@
         let headVelocities = [];
         let headOriginalPositions = [];
         
-        // Kollisions-Parameter
-        const collisionForce = 0.8;      // ANPASSEN: Wie stark der Kopf reagiert
-        const headSpringback = 0.06;     // ANPASSEN: Wie schnell Kopf zurückkehrt
-        const headDamping = 0.88;        // ANPASSEN: Dämpfung
-        const collisionRadius = 0.35;    // ANPASSEN: Kollisions-Reichweite
+        // Kollisions-Parameter - EXTREME DEFORMATION
+        const collisionForce = 1.5;      // ANPASSEN: Wie stark der Kopf reagiert (1.5 = sehr stark!)
+        const headSpringback = 0.04;     // ANPASSEN: Wie schnell Kopf zurückkehrt (langsamer)
+        const headDamping = 0.85;        // ANPASSEN: Dämpfung (weniger = mehr Wackeln)
+        const collisionRadius = 0.45;    // ANPASSEN: Kollisions-Reichweite (größer = früher reagieren)
         
         // Gurken-Physik (bewegt sich mit Cursor)
         let pickleVelocity = new THREE.Vector3();
@@ -533,14 +537,17 @@
                 // Berechne Distanz zur Gurke
                 const distance = worldVertex.distanceTo(picklePos);
 
-                // KOLLISION
+                // STARKE KOLLISION - Gurke geht NICHT durch!
                 if (distance < collisionRadius) {
-                    // Vertices werden von Gurke weggedrückt
+                    // Vertices werden EXTREM von Gurke weggedrückt
                     const pushDir = worldVertex.clone().sub(picklePos).normalize();
-                    const force = (1 - distance / collisionRadius) * collisionForce;
                     
-                    // Berücksichtige Gurken-Geschwindigkeit für mehr Impact
-                    const velocityBoost = pickleVelocity.length() * 2.0;
+                    // EXTREME Kraft - quadratische Steigerung je näher Gurke kommt
+                    const proximityFactor = Math.max(0, 1 - distance / collisionRadius);
+                    const force = Math.pow(proximityFactor, 2) * collisionForce * 4.0; // 4x stärker!
+                    
+                    // VIEL mehr Impact durch Gurken-Geschwindigkeit
+                    const velocityBoost = pickleVelocity.length() * 6.0; // 3x mehr Impact
                     
                     // Zurück in Local Space
                     const worldToLocal = new THREE.Matrix4().copy(headMesh.matrixWorld).invert();
