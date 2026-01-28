@@ -12,7 +12,7 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            cursor: none; /* Verstecke Standard-Cursor */
+            cursor: none;
         }
 
         body {
@@ -21,9 +21,6 @@
             overflow-y: auto;
         }
 
-        /* ============================================
-           NEON LAUFSCHRIFT OBEN
-           ============================================ */
         .ticker-wrapper {
             position: fixed;
             top: 0;
@@ -40,18 +37,18 @@
         .ticker {
             display: flex;
             white-space: nowrap;
-            animation: scroll 30s linear infinite; /* ANPASSEN: Geschwindigkeit */
+            animation: scroll 30s linear infinite;
         }
 
         .ticker-item {
             font-family: 'Inknut Antiqua', serif;
             font-weight: 700;
-            font-size: 24px; /* ANPASSEN: Textgröße */
-            color: #00ff00; /* ANPASSEN: Neongrün */
+            font-size: 24px;
+            color: #00ff00;
             text-shadow: 
                 0 0 10px #00ff00,
                 0 0 20px #00ff00,
-                0 0 30px #00ff00; /* Neon-Glow Effekt */
+                0 0 30px #00ff00;
             padding: 0 50px;
             letter-spacing: 0.02em;
         }
@@ -79,16 +76,13 @@
             }
         }
 
-        /* ============================================
-           IMAGE GRID BACKGROUND
-           ============================================ */
         .image-grid {
             position: relative;
             width: 100%;
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             z-index: 1;
-            margin-top: 60px; /* Platz für Ticker */
+            margin-top: 60px;
         }
 
         .grid-item {
@@ -120,26 +114,23 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0, 0, 0, 0.5); /* 50% abgedunkelt */
+            background: rgba(0, 0, 0, 0.5);
             transition: background 0.3s ease;
             z-index: 1;
         }
 
         .grid-item a:hover::before {
-            background: rgba(0, 0, 0, 0); /* 100% sichtbar beim Hover */
+            background: rgba(0, 0, 0, 0);
         }
 
-        /* ============================================
-           3D SCENE CONTAINER
-           ============================================ */
         #scene-container {
             position: fixed;
-            top: 60px; /* Unter dem Ticker */
+            top: 60px;
             left: 0;
             width: 100%;
             height: calc(100vh - 60px);
             z-index: 500;
-            pointer-events: none; /* Grid bleibt klickbar */
+            pointer-events: none;
         }
 
         canvas {
@@ -171,21 +162,14 @@
     </style>
 </head>
 <body>
-    <!-- ============================================
-         NEON TICKER (LAUFSCHRIFT)
-         ============================================ -->
     <div class="ticker-wrapper">
         <div class="ticker">
-            <!-- Text wiederholt sich für endlose Animation -->
-            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="/cdn-cgi/l/email-protection#3c51534e554846124f5d4f4f7c515d55505e534412534e5b">schreib mir</a></div>
-            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="/cdn-cgi/l/email-protection#fb969489928f81d5889a8888bb969a9297999483d594899c">schreib mir</a></div>
-            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="/cdn-cgi/l/email-protection#7f12100d160b05510c1e0c0c3f121e16131d100751100d18">schreib mir</a></div>
+            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="mailto:moritz.sass@mailbox.org">schreib mir</a></div>
+            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="mailto:moritz.sass@mailbox.org">schreib mir</a></div>
+            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="mailto:moritz.sass@mailbox.org">schreib mir</a></div>
         </div>
     </div>
 
-    <!-- ============================================
-         IMAGE GRID
-         ============================================ -->
     <div class="image-grid">
         <div class="grid-item">
             <a href="/work/private-lounge-amg">
@@ -249,14 +233,11 @@
         </div>
     </div>
 
-    <!-- ============================================
-         3D SCENE
-         ============================================ -->
     <div id="scene-container">
         <div class="loading">Lädt 3D Scene...</div>
     </div>
 
-    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script type="importmap">
+    <script type="importmap">
     {
         "imports": {
             "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -273,9 +254,6 @@
         import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
         import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-        /* ============================================
-           SCENE SETUP
-           ============================================ */
         const scene = new THREE.Scene();
         
         const camera = new THREE.PerspectiveCamera(
@@ -288,38 +266,26 @@
 
         const renderer = new THREE.WebGLRenderer({ 
             antialias: true,
-            alpha: true // Transparenter Hintergrund - WICHTIG!
+            alpha: true 
         });
-        renderer.setClearColor(0x000000, 0); // TRANSPARENT - kein schwarzer Hintergrund
+        renderer.setClearColor(0x000000, 0); // Transparent!
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         renderer.toneMappingExposure = 1.2;
         document.getElementById('scene-container').appendChild(renderer.domElement);
 
-        /* ============================================
-           POST-PROCESSING: Motion Blur für Gurke
-           ============================================ */
         const composer = new EffectComposer(renderer);
-        const renderPass = new RenderPass(scene, camera);
-        renderPass.clearColor = new THREE.Color(0, 0, 0);
-        renderPass.clearAlpha = 0; // Transparent
-        composer.addPass(renderPass);
+        composer.addPass(new RenderPass(scene, camera));
 
-        // Bloom für Leucht-Effekt (optional)
         const bloomPass = new UnrealBloomPass(
             new THREE.Vector2(window.innerWidth, window.innerHeight),
-            0.3,  // ANPASSEN: Strength (0.3 = subtil)
-            0.4,  // Radius
-            0.85  // Threshold
+            0.3,
+            0.4,
+            0.85
         );
         composer.addPass(bloomPass);
 
-        /* ============================================
-           LIGHTING
-           ============================================ */
-        
-        // HDRI Environment
         const rgbeLoader = new RGBELoader();
         rgbeLoader.load(
             'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/studio_small_08_1k.hdr',
@@ -334,47 +300,37 @@
             }
         );
 
-        // Spotlight von vorne rechts
         const spotlight = new THREE.SpotLight(0xffffff, 2.5, 10, Math.PI / 6, 0.5, 1.0);
         spotlight.position.set(2, 0.5, 3);
         spotlight.target.position.set(0, 0, 0);
         scene.add(spotlight);
         scene.add(spotlight.target);
 
-        // Fill Light
         const fillLight = new THREE.DirectionalLight(0xffffff, 0.4);
         fillLight.position.set(-2, 0, -1);
         scene.add(fillLight);
 
-        /* ============================================
-           PHYSICS SIMULATION VARIABLES
-           ============================================ */
-        
         let headModel = null;
-        let pickleModel = null; // Gurke
+        let pickleModel = null;
         
-        // Physik für den Kopf
         let headVertices = [];
         let headVelocities = [];
         let headOriginalPositions = [];
         
-        // Kollisions-Parameter - EXTREME DEFORMATION
-        const collisionForce = 1.5;      // ANPASSEN: Wie stark der Kopf reagiert (1.5 = sehr stark!)
-        const headSpringback = 0.04;     // ANPASSEN: Wie schnell Kopf zurückkehrt (langsamer)
-        const headDamping = 0.85;        // ANPASSEN: Dämpfung (weniger = mehr Wackeln)
-        const collisionRadius = 0.45;    // ANPASSEN: Kollisions-Reichweite (größer = früher reagieren)
+        // EXTREME COLLISION PARAMETERS
+        const collisionForce = 1.5;
+        const headSpringback = 0.04;
+        const headDamping = 0.85;
+        const collisionRadius = 0.45;
         
-        // Gurken-Physik (bewegt sich mit Cursor)
         let pickleVelocity = new THREE.Vector3();
         let pickleTargetPos = new THREE.Vector3();
-        const pickleSpeed = 0.15;        // ANPASSEN: Wie schnell Gurke folgt
-        const pickleDamping = 0.85;      // ANPASSEN: Träge der Gurke
+        const pickleSpeed = 0.15;
+        const pickleDamping = 0.85;
         
-        // Trail-Effekt für Motion Blur (Gurke hinterlässt Spur)
-        const trailLength = 8;           // ANPASSEN: Länge der Spur
+        const trailLength = 8;
         let pickleTrail = [];
         
-        // Mouse tracking
         const mouse = new THREE.Vector2();
         const smoothMouse = new THREE.Vector2();
         let scrollY = 0;
@@ -389,20 +345,15 @@
             mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
         });
 
-        /* ============================================
-           LOAD PICKLE (GURKE) MODEL
-           ============================================ */
         const pickleLoader = new GLTFLoader();
         pickleLoader.load(
-            'gurke.glb', // ANPASSEN: Pfad zu deiner Gurke
+            'gurke.glb',
             (gltf) => {
                 console.log('Gurke geladen!');
                 pickleModel = gltf.scene;
                 
-                // ANPASSEN: Gurken-Größe (klein)
-                pickleModel.scale.setScalar(0.1); // Klein: 0.05-0.15
+                pickleModel.scale.setScalar(0.1);
                 
-                // Material mit Glow (optional)
                 pickleModel.traverse((child) => {
                     if (child.isMesh) {
                         child.material.emissive = new THREE.Color(0x00ff00);
@@ -412,14 +363,13 @@
                 
                 scene.add(pickleModel);
                 
-                // Erstelle Trail-Clones für Motion Blur Effekt
                 for (let i = 0; i < trailLength; i++) {
                     const clone = pickleModel.clone();
                     clone.traverse((child) => {
                         if (child.isMesh) {
                             child.material = child.material.clone();
                             child.material.transparent = true;
-                            child.material.opacity = 0.3 * (1 - i / trailLength); // Verblasst
+                            child.material.opacity = 0.3 * (1 - i / trailLength);
                         }
                     });
                     pickleTrail.push(clone);
@@ -430,7 +380,6 @@
             (error) => {
                 console.log('Gurke nicht gefunden, erstelle Fallback');
                 
-                // Fallback: kleine grüne Kugel
                 const geometry = new THREE.SphereGeometry(0.08, 16, 16);
                 const material = new THREE.MeshStandardMaterial({
                     color: 0x00ff00,
@@ -442,9 +391,6 @@
             }
         );
 
-        /* ============================================
-           INITIALIZE HEAD PHYSICS
-           ============================================ */
         function initHeadPhysics(mesh) {
             const geometry = mesh.geometry;
             const positions = geometry.attributes.position;
@@ -467,35 +413,27 @@
             console.log(`Head Physics initialisiert: ${positions.count} Vertices`);
         }
 
-        /* ============================================
-           UPDATE PICKLE MOVEMENT & TRAIL
-           ============================================ */
         function updatePickle() {
             if (!pickleModel) return;
 
-            // Smooth mouse
             smoothMouse.lerp(mouse, 0.1);
 
-            // Berechne Ziel-Position für Gurke
             pickleTargetPos.set(
-                smoothMouse.x * 2.0,  // ANPASSEN: Bewegungsbereich X
-                smoothMouse.y * 2.0,  // ANPASSEN: Bewegungsbereich Y
-                0.3                   // ANPASSEN: Tiefe im Raum
+                smoothMouse.x * 2.0,
+                smoothMouse.y * 2.0,
+                0.3
             );
 
-            // Physik-basierte Bewegung (nicht instant)
             const direction = pickleTargetPos.clone().sub(pickleModel.position);
             pickleVelocity.add(direction.multiplyScalar(pickleSpeed));
             pickleVelocity.multiplyScalar(pickleDamping);
             pickleModel.position.add(pickleVelocity);
 
-            // ANPASSEN: Gurke dreht sich basierend auf Bewegungsrichtung
             if (pickleVelocity.length() > 0.01) {
                 pickleModel.rotation.z = Math.atan2(pickleVelocity.y, pickleVelocity.x);
-                pickleModel.rotation.y += 0.05; // Kontinuierliche Drehung
+                pickleModel.rotation.y += 0.05;
             }
 
-            // Update Motion Blur Trail
             for (let i = pickleTrail.length - 1; i > 0; i--) {
                 pickleTrail[i].position.copy(pickleTrail[i - 1].position);
                 pickleTrail[i].rotation.copy(pickleTrail[i - 1].rotation);
@@ -506,65 +444,42 @@
             }
         }
 
-        /* ============================================
-           COLLISION DETECTION & HEAD REACTION
-           ============================================ */
         function updateCollision() {
             if (!headModel || !pickleModel || headVertices.length === 0) return;
 
-            // Finde das tatsächliche Mesh im Head Model
-            let headMesh = null;
-            headModel.traverse((child) => {
-                if (child.isMesh && !headMesh) {
-                    headMesh = child;
-                }
-            });
-
-            if (!headMesh) return;
-
-            const geometry = headMesh.geometry;
+            const geometry = headModel.children[0].geometry;
             const positions = geometry.attributes.position;
 
             const picklePos = pickleModel.position;
 
-            // Für jeden Vertex im Kopf
             for (let i = 0; i < positions.count; i++) {
                 const vertex = headVertices[i];
                 
-                // Konvertiere zu World Space
-                const worldVertex = vertex.clone().applyMatrix4(headMesh.matrixWorld);
+                const worldVertex = vertex.clone().applyMatrix4(headModel.matrixWorld);
                 
-                // Berechne Distanz zur Gurke
                 const distance = worldVertex.distanceTo(picklePos);
 
-                // STARKE KOLLISION - Gurke geht NICHT durch!
+                // EXTREME COLLISION - Gurke geht NICHT durch!
                 if (distance < collisionRadius) {
-                    // Vertices werden EXTREM von Gurke weggedrückt
                     const pushDir = worldVertex.clone().sub(picklePos).normalize();
                     
-                    // EXTREME Kraft - quadratische Steigerung je näher Gurke kommt
                     const proximityFactor = Math.max(0, 1 - distance / collisionRadius);
-                    const force = Math.pow(proximityFactor, 2) * collisionForce * 4.0; // 4x stärker!
+                    const force = Math.pow(proximityFactor, 2) * collisionForce * 4.0;
                     
-                    // VIEL mehr Impact durch Gurken-Geschwindigkeit
-                    const velocityBoost = pickleVelocity.length() * 6.0; // 3x mehr Impact
+                    const velocityBoost = pickleVelocity.length() * 6.0;
                     
-                    // Zurück in Local Space
-                    const worldToLocal = new THREE.Matrix4().copy(headMesh.matrixWorld).invert();
+                    const worldToLocal = new THREE.Matrix4().copy(headModel.matrixWorld).invert();
                     pushDir.applyMatrix4(worldToLocal);
                     pushDir.normalize();
                     
                     headVelocities[i].add(pushDir.multiplyScalar(force * (1 + velocityBoost)));
                 }
 
-                // Spring zurück zur Original-Position
                 const diff = headOriginalPositions[i].clone().sub(vertex);
                 headVelocities[i].add(diff.multiplyScalar(headSpringback));
 
-                // Damping
                 headVelocities[i].multiplyScalar(headDamping);
 
-                // Update Position
                 vertex.add(headVelocities[i]);
                 positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
             }
@@ -573,9 +488,6 @@
             geometry.computeVertexNormals();
         }
 
-        /* ============================================
-           HEAD ROTATION (Scroll)
-           ============================================ */
         function updateHeadRotation() {
             if (!headModel) return;
 
@@ -585,9 +497,6 @@
             headModel.rotation.y = scrollRotation;
         }
 
-        /* ============================================
-           FALLBACK HEAD
-           ============================================ */
         const createFallbackHead = () => {
             const geometry = new THREE.SphereGeometry(0.6, 128, 128);
             const material = new THREE.MeshStandardMaterial({
@@ -605,17 +514,13 @@
             document.querySelector('.loading').style.display = 'none';
         };
 
-        /* ============================================
-           LOAD HEAD MODEL
-           ============================================ */
         const headLoader = new GLTFLoader();
         headLoader.load(
-            'kopf.glb', // ANPASSEN: Pfad zu deinem Kopf-Model
+            'kopf.glb',
             (gltf) => {
-                console.log('Kopf-Model geladen!'); // DEBUG
+                console.log('Kopf-Model geladen!');
                 headModel = gltf.scene;
                 
-                // Center and scale
                 const box = new THREE.Box3().setFromObject(headModel);
                 const center = box.getCenter(new THREE.Vector3());
                 const size = box.getSize(new THREE.Vector3());
@@ -625,7 +530,6 @@
                 headModel.scale.setScalar(scale);
                 headModel.position.sub(center.multiplyScalar(scale));
                 
-                // Find main mesh
                 let mainMesh = null;
                 headModel.traverse((child) => {
                     if (child.isMesh && !mainMesh) {
@@ -640,19 +544,13 @@
                 scene.add(headModel);
                 document.querySelector('.loading').style.display = 'none';
             },
-            (progress) => {
-                const percent = (progress.loaded / progress.total * 100).toFixed(0);
-                document.querySelector('.loading').textContent = `Lädt ${percent}%`;
-            },
+            undefined,
             (error) => {
-                console.log('Model not found, using fallback geometry');
+                console.log('Kopf-Model nicht gefunden, nutze Fallback');
                 createFallbackHead();
             }
         );
 
-        /* ============================================
-           WINDOW RESIZE
-           ============================================ */
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
@@ -660,11 +558,19 @@
             composer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        /* ============================================
-           ANIMATION LOOP
-           ============================================ */
         function animate() {
             requestAnimationFrame(animate);
             
-            updatePickle();         // Gurken-Bewegung
-            updateCollision();      // Kolli
+            updatePickle();
+            updateCollision();
+            updateHeadRotation();
+            
+            composer.render();
+        }
+
+        animate();
+        
+        console.log('Scene initialisiert!');
+    </script>
+</body>
+</html>
