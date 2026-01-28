@@ -46,7 +46,7 @@
         .ticker-item {
             font-family: 'Inknut Antiqua', serif;
             font-weight: 700;
-            font-size: 24px; /* ANPASSEN: Textgröße */
+            font-size: 50px; /* ANPASSEN: Textgröße */
             color: #00ff00; /* ANPASSEN: Neongrün */
             text-shadow: 
                 0 0 10px #00ff00,
@@ -177,9 +177,10 @@
     <div class="ticker-wrapper">
         <div class="ticker">
             <!-- Text wiederholt sich für endlose Animation -->
-            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="mailto:moritz.sass@mailbox.org">schreib mir</a></div>
-            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="mailto:moritz.sass@mailbox.org">schreib mir</a></div>
-            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="mailto:moritz.sass@mailbox.org">schreib mir</a></div>
+            <div class="ticker-item">Moritz Sass Art Direction/Motion Design</a></div>
+            <div class="ticker-item">Moritz Sass Art Direction/Motion Design</a></div>
+            <div class="ticker-item">Moritz Sass Art Direction/Motion Design</a></div>
+
         </div>
     </div>
 
@@ -593,7 +594,7 @@
            ============================================ */
         const headLoader = new GLTFLoader();
         headLoader.load(
-            'kopf.glb', // ANPASSEN: Pfad zu deinem Kopf-Model
+            'kyour-model.glb', // ANPASSEN: Pfad zu deinem Kopf-Model
             (gltf) => {
                 console.log('Kopf-Model geladen!');
                 headModel = gltf.scene;
