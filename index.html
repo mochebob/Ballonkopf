@@ -164,9 +164,9 @@
 <body>
     <div class="ticker-wrapper">
         <div class="ticker">
-            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="/cdn-cgi/l/email-protection#cda0a2bfa4b9b7e3beacbebe8da0aca4a1afa2b5e3a2bfaa">schreib mir</a></div>
-            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="/cdn-cgi/l/email-protection#7b161409120f0155081a08083b161a12171914035514091c">schreib mir</a></div>
-            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="/cdn-cgi/l/email-protection#503d3f2239242a7e23312323103d31393c323f287e3f2237">schreib mir</a></div>
+            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="mailto:moritz.sass@mailbox.org">schreib mir</a></div>
+            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="mailto:moritz.sass@mailbox.org">schreib mir</a></div>
+            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="mailto:moritz.sass@mailbox.org">schreib mir</a></div>
         </div>
     </div>
 
@@ -237,7 +237,7 @@
         <div class="loading">Lädt 3D Scene...</div>
     </div>
 
-    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script type="importmap">
+    <script type="importmap">
     {
         "imports": {
             "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -250,43 +250,35 @@
         import * as THREE from 'three';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
         import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
+        /* ============================================
+           SCENE SETUP
+           ============================================ */
         const scene = new THREE.Scene();
-        scene.background = null; // KEIN Hintergrund - komplett transparent!
+        scene.background = null;
         
         const camera = new THREE.PerspectiveCamera(
-            50,
+            60,
             window.innerWidth / window.innerHeight,
             0.1,
             1000
         );
-        camera.position.set(0, 0, 2.5);
+        camera.position.set(0, 0, 5);
 
         const renderer = new THREE.WebGLRenderer({ 
             antialias: true,
             alpha: true 
         });
-        renderer.setClearColor(0x000000, 0); // Transparent!
+        renderer.setClearColor(0x000000, 0);
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         renderer.toneMappingExposure = 1.2;
         document.getElementById('scene-container').appendChild(renderer.domElement);
 
-        const composer = new EffectComposer(renderer);
-        composer.addPass(new RenderPass(scene, camera));
-
-        const bloomPass = new UnrealBloomPass(
-            new THREE.Vector2(window.innerWidth, window.innerHeight),
-            0.3,
-            0.4,
-            0.85
-        );
-        composer.addPass(bloomPass);
-
+        /* ============================================
+           LIGHTING
+           ============================================ */
         const rgbeLoader = new RGBELoader();
         rgbeLoader.load(
             'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/studio_small_08_1k.hdr',
@@ -296,55 +288,173 @@
             },
             undefined,
             (error) => {
-                const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
                 scene.add(ambientLight);
+                
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+                directionalLight.position.set(2, 2, 3);
+                scene.add(directionalLight);
             }
         );
 
-        const spotlight = new THREE.SpotLight(0xffffff, 2.5, 10, Math.PI / 6, 0.5, 1.0);
-        spotlight.position.set(2, 0.5, 3);
-        spotlight.target.position.set(0, 0, 0);
-        scene.add(spotlight);
-        scene.add(spotlight.target);
+        /* ============================================
+           FLOATING HEADS SYSTEM
+           ============================================ */
+        class FloatingHead {
+            constructor(model, position) {
+                this.group = new THREE.Group();
+                this.model = model.clone();
+                this.group.add(this.model);
+                
+                // Position & Velocity für Schwerelosigkeit
+                this.position = position.clone();
+                this.velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.01, // ANPASSEN: Startgeschwindigkeit
+                    (Math.random() - 0.5) * 0.01,
+                    (Math.random() - 0.5) * 0.005
+                );
+                this.rotation = new THREE.Vector3(
+                    Math.random() * 0.01,
+                    Math.random() * 0.01,
+                    Math.random() * 0.01
+                );
+                
+                this.group.position.copy(position);
+                
+                // Jelly/Gummi Physics
+                this.originalVertices = [];
+                this.vertexVelocities = [];
+                this.mesh = null;
+                
+                // Finde Mesh
+                this.model.traverse((child) => {
+                    if (child.isMesh && !this.mesh) {
+                        this.mesh = child;
+                        this.initJelly();
+                    }
+                });
+                
+                // Bounding Sphere für Kollision
+                this.radius = 0.3; // ANPASSEN: Kollisions-Radius
+            }
+            
+            initJelly() {
+                if (!this.mesh) return;
+                
+                const geometry = this.mesh.geometry;
+                const positions = geometry.attributes.position;
+                
+                for (let i = 0; i < positions.count; i++) {
+                    const pos = new THREE.Vector3(
+                        positions.getX(i),
+                        positions.getY(i),
+                        positions.getZ(i)
+                    );
+                    this.originalVertices.push(pos.clone());
+                    this.vertexVelocities.push(new THREE.Vector3());
+                }
+            }
+            
+            applyForce(force, point) {
+                // Kraft anwenden (von Gurke oder anderem Kopf)
+                this.velocity.add(force.multiplyScalar(0.05)); // ANPASSEN: Kraft-Multiplikator
+                
+                // Gummi-Deformation
+                if (!this.mesh || this.originalVertices.length === 0) return;
+                
+                const geometry = this.mesh.geometry;
+                const positions = geometry.attributes.position;
+                
+                for (let i = 0; i < positions.count; i++) {
+                    const worldVertex = this.originalVertices[i].clone()
+                        .applyMatrix4(this.mesh.matrixWorld);
+                    
+                    const distance = worldVertex.distanceTo(point);
+                    
+                    if (distance < 0.5) { // ANPASSEN: Deformations-Radius
+                        const pushDir = worldVertex.clone().sub(point).normalize();
+                        const strength = (1 - distance / 0.5) * 0.3; // ANPASSEN: Deformations-Stärke
+                        
+                        const worldToLocal = new THREE.Matrix4()
+                            .copy(this.mesh.matrixWorld).invert();
+                        pushDir.applyMatrix4(worldToLocal);
+                        pushDir.normalize();
+                        
+                        this.vertexVelocities[i].add(pushDir.multiplyScalar(strength));
+                    }
+                }
+            }
+            
+            updateJelly() {
+                if (!this.mesh || this.originalVertices.length === 0) return;
+                
+                const geometry = this.mesh.geometry;
+                const positions = geometry.attributes.position;
+                
+                for (let i = 0; i < positions.count; i++) {
+                    const vertex = new THREE.Vector3(
+                        positions.getX(i),
+                        positions.getY(i),
+                        positions.getZ(i)
+                    );
+                    
+                    // Spring zurück
+                    const diff = this.originalVertices[i].clone().sub(vertex);
+                    this.vertexVelocities[i].add(diff.multiplyScalar(0.05)); // ANPASSEN: Springback
+                    
+                    // Damping
+                    this.vertexVelocities[i].multiplyScalar(0.9); // ANPASSEN: Dämpfung
+                    
+                    // Update
+                    vertex.add(this.vertexVelocities[i]);
+                    positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
+                }
+                
+                positions.needsUpdate = true;
+            }
+            
+            update(bounds) {
+                // Schwerelosigkeit: Position updaten
+                this.position.add(this.velocity);
+                this.group.position.copy(this.position);
+                
+                // Sanfte Rotation
+                this.group.rotation.x += this.rotation.x;
+                this.group.rotation.y += this.rotation.y;
+                this.group.rotation.z += this.rotation.z;
+                
+                // Bounds checking (Bounce an Wänden)
+                if (Math.abs(this.position.x) > bounds.x) {
+                    this.velocity.x *= -0.8;
+                    this.position.x = Math.sign(this.position.x) * bounds.x;
+                }
+                if (Math.abs(this.position.y) > bounds.y) {
+                    this.velocity.y *= -0.8;
+                    this.position.y = Math.sign(this.position.y) * bounds.y;
+                }
+                if (Math.abs(this.position.z) > bounds.z) {
+                    this.velocity.z *= -0.8;
+                    this.position.z = Math.sign(this.position.z) * bounds.z;
+                }
+                
+                // Velocity Damping (langsam abbremsen)
+                this.velocity.multiplyScalar(0.995); // ANPASSEN: Wie schnell abbremst
+                
+                // Jelly Update
+                this.updateJelly();
+            }
+        }
 
-        const fillLight = new THREE.DirectionalLight(0xffffff, 0.4);
-        fillLight.position.set(-2, 0, -1);
-        scene.add(fillLight);
-
-        let headModel = null;
+        /* ============================================
+           PICKLE (GURKE)
+           ============================================ */
         let pickleModel = null;
-        
-        let headVertices = [];
-        let headVelocities = [];
-        let headOriginalPositions = [];
-        
-        // EXTREME COLLISION PARAMETERS - Gurke geht NICHT durch!
-        const collisionForce = 2.0;      // Sehr stark
-        const headSpringback = 0.03;     // Langsamer zurück = mehr Stretch
-        const headDamping = 0.82;        // Weniger Dämpfung = mehr Wackel
-        const collisionRadius = 0.5;     // Größerer Bereich
-        
         let pickleVelocity = new THREE.Vector3();
-        let pickleTargetPos = new THREE.Vector3();
-        const pickleSpeed = 0.15;
-        const pickleDamping = 0.85;
-        
-        const trailLength = 4;           // REDUZIERT: 4 statt 8 für Performance
-        let pickleTrail = [];
+        const pickleSpeed = 0.2;
+        const pickleDamping = 0.88;
         
         const mouse = new THREE.Vector2();
         const smoothMouse = new THREE.Vector2();
-        let scrollY = 0;
-        let smoothScrollY = 0;
-        
-        // FPS Counter für Performance-Check
-        let frameCount = 0;
-        let lastTime = performance.now();
-        let fps = 60;
-        
-        window.addEventListener('scroll', () => {
-            scrollY = window.scrollY;
-        });
         
         window.addEventListener('mousemove', (event) => {
             mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -355,263 +465,202 @@
         pickleLoader.load(
             'gurke.glb',
             (gltf) => {
-                console.log('Gurke geladen!');
                 pickleModel = gltf.scene;
-                
-                pickleModel.scale.setScalar(0.1);
-                
-                pickleModel.traverse((child) => {
-                    if (child.isMesh) {
-                        child.material.emissive = new THREE.Color(0x00ff00);
-                        child.material.emissiveIntensity = 0.2;
-                    }
-                });
-                
+                pickleModel.scale.setScalar(0.08); // ANPASSEN: Gurken-Größe
                 scene.add(pickleModel);
-                
-                for (let i = 0; i < trailLength; i++) {
-                    const clone = pickleModel.clone();
-                    clone.traverse((child) => {
-                        if (child.isMesh) {
-                            child.material = child.material.clone();
-                            child.material.transparent = true;
-                            child.material.opacity = 0.3 * (1 - i / trailLength);
-                        }
-                    });
-                    pickleTrail.push(clone);
-                    scene.add(clone);
-                }
             },
             undefined,
             (error) => {
-                console.log('Gurke nicht gefunden, erstelle Fallback');
-                
-                const geometry = new THREE.SphereGeometry(0.08, 16, 16);
+                // Fallback
+                const geometry = new THREE.SphereGeometry(0.06, 16, 16);
                 const material = new THREE.MeshStandardMaterial({
                     color: 0x00ff00,
                     emissive: 0x00ff00,
-                    emissiveIntensity: 0.3
+                    emissiveIntensity: 0.2
                 });
                 pickleModel = new THREE.Mesh(geometry, material);
                 scene.add(pickleModel);
             }
         );
 
-        function initHeadPhysics(mesh) {
-            const geometry = mesh.geometry;
-            const positions = geometry.attributes.position;
-            
-            headVertices = [];
-            headVelocities = [];
-            headOriginalPositions = [];
-            
-            for (let i = 0; i < positions.count; i++) {
-                const pos = new THREE.Vector3(
-                    positions.getX(i),
-                    positions.getY(i),
-                    positions.getZ(i)
-                );
-                headOriginalPositions.push(pos.clone());
-                headVertices.push(pos);
-                headVelocities.push(new THREE.Vector3());
-            }
-            
-            console.log(`⚠️ Head Physics: ${positions.count} Vertices`);
-            
-            // WARNUNG bei zu vielen Vertices
-            if (positions.count > 10000) {
-                console.error('❌ ZU VIELE VERTICES! (' + positions.count + ') - Wird extrem langsam!');
-                console.log('💡 Tipp: Decimiere dein Model in Blender auf ~5000 Vertices');
-            } else if (positions.count > 5000) {
-                console.warn('⚠️ Viele Vertices (' + positions.count + ') - Könnte langsam sein');
-            } else {
-                console.log('✅ Vertex Count OK für Physik');
-            }
-        }
-
         function updatePickle() {
             if (!pickleModel) return;
 
-            smoothMouse.lerp(mouse, 0.1);
+            smoothMouse.lerp(mouse, 0.15);
 
-            // Gurke bewegt sich auch in der TIEFE (Z-Achse)
-            // Je weiter rechts die Maus, desto weiter hinten die Gurke
-            const depthVariation = smoothMouse.x * 0.8; // ANPASSEN: Wie stark Tiefenvariation
-
-            pickleTargetPos.set(
-                smoothMouse.x * 2.0,
-                smoothMouse.y * 2.0,
-                0.3 + depthVariation  // Variiert zwischen -0.5 und 1.1
+            const depthVariation = smoothMouse.x * 0.5;
+            const targetPos = new THREE.Vector3(
+                smoothMouse.x * 4.0, // ANPASSEN: Bewegungsbereich
+                smoothMouse.y * 3.0,
+                2.0 + depthVariation
             );
 
-            const direction = pickleTargetPos.clone().sub(pickleModel.position);
+            const direction = targetPos.clone().sub(pickleModel.position);
             pickleVelocity.add(direction.multiplyScalar(pickleSpeed));
             pickleVelocity.multiplyScalar(pickleDamping);
             pickleModel.position.add(pickleVelocity);
 
             if (pickleVelocity.length() > 0.01) {
                 pickleModel.rotation.z = Math.atan2(pickleVelocity.y, pickleVelocity.x);
-                pickleModel.rotation.y += 0.05;
-            }
-
-            for (let i = pickleTrail.length - 1; i > 0; i--) {
-                pickleTrail[i].position.copy(pickleTrail[i - 1].position);
-                pickleTrail[i].rotation.copy(pickleTrail[i - 1].rotation);
-            }
-            if (pickleTrail.length > 0) {
-                pickleTrail[0].position.copy(pickleModel.position);
-                pickleTrail[0].rotation.copy(pickleModel.rotation);
+                pickleModel.rotation.y += 0.03;
             }
         }
 
-        function updateCollision() {
-            if (!headModel || !pickleModel || headVertices.length === 0) return;
+        /* ============================================
+           HEADS ARRAY & COLLISION
+           ============================================ */
+        const heads = [];
+        const bounds = new THREE.Vector3(4, 3, 2); // ANPASSEN: Raum-Grenzen
+        let headTemplate = null;
 
-            const geometry = headModel.children[0].geometry;
-            const positions = geometry.attributes.position;
-            const picklePos = pickleModel.position;
-
-            // OPTIMIZATION: Nur wenn Gurke nah genug am Kopf ist, prüfen wir Kollision
-            const headCenter = new THREE.Vector3();
-            headModel.getWorldPosition(headCenter);
-            const distanceToHead = headCenter.distanceTo(picklePos);
+        // Kollision zwischen zwei Köpfen
+        function checkHeadCollision(head1, head2) {
+            const distance = head1.position.distanceTo(head2.position);
+            const minDist = head1.radius + head2.radius;
             
-            // Wenn Gurke zu weit weg (>1.5), keine Kollision prüfen
-            if (distanceToHead > 1.5) {
-                // Nur zurückfedern
-                for (let i = 0; i < positions.count; i++) {
-                    const vertex = headVertices[i];
-                    const originalPos = headOriginalPositions[i];
-                    
-                    const diff = originalPos.clone().sub(vertex);
-                    headVelocities[i].add(diff.multiplyScalar(headSpringback));
-                    headVelocities[i].multiplyScalar(headDamping);
-                    
-                    vertex.add(headVelocities[i]);
-                    positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
-                }
-                positions.needsUpdate = true;
-                return;
-            }
-
-            // Normale Kollisionsprüfung wenn Gurke nah ist
-            for (let i = 0; i < positions.count; i++) {
-                const vertex = headVertices[i];
-                const originalPos = headOriginalPositions[i];
+            if (distance < minDist) {
+                // Kollision! Beide abprallen
+                const normal = head2.position.clone().sub(head1.position).normalize();
+                const relativeVelocity = head1.velocity.clone().sub(head2.velocity);
+                const speed = relativeVelocity.dot(normal);
                 
-                const worldVertex = vertex.clone().applyMatrix4(headModel.matrixWorld);
-                const distance = worldVertex.distanceTo(picklePos);
-
-                if (distance < collisionRadius) {
-                    const pushDir = worldVertex.clone().sub(picklePos).normalize();
-                    
-                    const proximityFactor = Math.max(0, 1 - distance / collisionRadius);
-                    const force = Math.pow(proximityFactor, 2) * collisionForce * 6.0;
-                    
-                    const velocityBoost = pickleVelocity.length() * 8.0;
-                    
-                    const worldToLocal = new THREE.Matrix4().copy(headModel.matrixWorld).invert();
-                    pushDir.applyMatrix4(worldToLocal);
-                    pushDir.normalize();
-                    
-                    headVelocities[i].add(pushDir.multiplyScalar(force * (1 + velocityBoost)));
-                }
-
-                const diff = originalPos.clone().sub(vertex);
-                headVelocities[i].add(diff.multiplyScalar(headSpringback));
-                headVelocities[i].multiplyScalar(headDamping);
-
-                vertex.add(headVelocities[i]);
-                positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
+                if (speed < 0) return; // Already separating
+                
+                const impulse = normal.clone().multiplyScalar(speed * 0.8); // ANPASSEN: Bounce-Stärke
+                
+                head1.velocity.sub(impulse);
+                head2.velocity.add(impulse);
+                
+                // Gummi-Deformation an Kollisionspunkt
+                const collisionPoint = head1.position.clone().add(normal.clone().multiplyScalar(head1.radius));
+                head1.applyForce(normal.clone().multiplyScalar(-0.5), collisionPoint);
+                head2.applyForce(normal.clone().multiplyScalar(0.5), collisionPoint);
+                
+                // Separate overlapping heads
+                const overlap = minDist - distance;
+                const separation = normal.clone().multiplyScalar(overlap * 0.5);
+                head1.position.sub(separation);
+                head2.position.add(separation);
             }
-
-            positions.needsUpdate = true;
-            // geometry.computeVertexNormals(); // DEAKTIVIERT für Performance
         }
 
-        function updateHeadRotation() {
-            if (!headModel) return;
-
-            smoothScrollY += (scrollY - smoothScrollY) * 0.05;
-            const scrollRotation = (smoothScrollY / 1000) * Math.PI;
-
-            headModel.rotation.y = scrollRotation;
-        }
-
-        const createFallbackHead = () => {
-            const geometry = new THREE.SphereGeometry(0.6, 128, 128);
-            const material = new THREE.MeshStandardMaterial({
-                color: 0xe8e8e8,
-                roughness: 0.5,
-                metalness: 0.3
+        // Kollision mit Gurke
+        function checkPickleCollision() {
+            if (!pickleModel) return;
+            
+            heads.forEach(head => {
+                const distance = head.position.distanceTo(pickleModel.position);
+                
+                if (distance < head.radius + 0.1) { // ANPASSEN: Gurken-Radius
+                    const force = pickleModel.position.clone().sub(head.position).normalize();
+                    force.multiplyScalar(pickleVelocity.length() * 2.0); // ANPASSEN: Stoß-Kraft
+                    
+                    head.applyForce(force, pickleModel.position);
+                }
             });
-            
-            const mesh = new THREE.Mesh(geometry, material);
-            headModel = new THREE.Group();
-            headModel.add(mesh);
-            scene.add(headModel);
-            
-            initHeadPhysics(mesh);
-            document.querySelector('.loading').style.display = 'none';
-        };
+        }
 
+        /* ============================================
+           LOAD HEAD MODEL
+           ============================================ */
         const headLoader = new GLTFLoader();
         headLoader.load(
             'kopf.glb',
             (gltf) => {
-                console.log('Kopf-Model geladen!');
-                headModel = gltf.scene;
+                headTemplate = gltf.scene;
                 
-                const box = new THREE.Box3().setFromObject(headModel);
-                const center = box.getCenter(new THREE.Vector3());
+                // Skaliere Template
+                const box = new THREE.Box3().setFromObject(headTemplate);
                 const size = box.getSize(new THREE.Vector3());
                 const maxDim = Math.max(size.x, size.y, size.z);
-                const scale = 1.8 / maxDim;
+                const scale = 0.4 / maxDim; // ANPASSEN: Kopf-Größe (0.4 = klein)
                 
-                headModel.scale.setScalar(scale);
-                headModel.position.sub(center.multiplyScalar(scale));
+                headTemplate.scale.setScalar(scale);
                 
-                let mainMesh = null;
-                headModel.traverse((child) => {
-                    if (child.isMesh && !mainMesh) {
-                        mainMesh = child;
-                    }
+                // Center
+                const center = box.getCenter(new THREE.Vector3());
+                headTemplate.position.sub(center.multiplyScalar(scale));
+                
+                // Erstelle 5 Köpfe an verschiedenen Positionen
+                const positions = [
+                    new THREE.Vector3(-2, 1, 0),
+                    new THREE.Vector3(2, -1, -0.5),
+                    new THREE.Vector3(0, 2, 0.5),
+                    new THREE.Vector3(-1.5, -1.5, -0.3),
+                    new THREE.Vector3(1.5, 1.5, 0.3)
+                ];
+                
+                positions.forEach(pos => {
+                    const head = new FloatingHead(headTemplate, pos);
+                    heads.push(head);
+                    scene.add(head.group);
                 });
                 
-                if (mainMesh) {
-                    initHeadPhysics(mainMesh);
-                }
-                
-                scene.add(headModel);
                 document.querySelector('.loading').style.display = 'none';
+                console.log('✅ 5 Köpfe erstellt!');
             },
             undefined,
             (error) => {
-                console.log('Kopf-Model nicht gefunden, nutze Fallback');
-                createFallbackHead();
+                console.log('Fallback Spheres');
+                // Fallback: 5 Kugeln
+                for (let i = 0; i < 5; i++) {
+                    const geometry = new THREE.SphereGeometry(0.3, 32, 32);
+                    const material = new THREE.MeshStandardMaterial({
+                        color: 0xe8e8e8,
+                        roughness: 0.5,
+                        metalness: 0.3
+                    });
+                    const mesh = new THREE.Mesh(geometry, material);
+                    const model = new THREE.Group();
+                    model.add(mesh);
+                    
+                    const pos = new THREE.Vector3(
+                        (Math.random() - 0.5) * 4,
+                        (Math.random() - 0.5) * 3,
+                        (Math.random() - 0.5) * 2
+                    );
+                    
+                    const head = new FloatingHead(model, pos);
+                    heads.push(head);
+                    scene.add(head.group);
+                }
+                document.querySelector('.loading').style.display = 'none';
             }
         );
 
+        /* ============================================
+           RESIZE & ANIMATION
+           ============================================ */
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
-            composer.setSize(window.innerWidth, window.innerHeight);
         });
 
         function animate() {
             requestAnimationFrame(animate);
             
             updatePickle();
-            updateCollision();
-            updateHeadRotation();
+            checkPickleCollision();
             
-            composer.render();
+            // Update alle Köpfe
+            heads.forEach(head => {
+                head.update(bounds);
+            });
+            
+            // Kopf-zu-Kopf Kollision
+            for (let i = 0; i < heads.length; i++) {
+                for (let j = i + 1; j < heads.length; j++) {
+                    checkHeadCollision(heads[i], heads[j]);
+                }
+            }
+            
+            renderer.render(scene, camera);
         }
 
         animate();
         
-        console.log('Scene initialisiert!');
+        console.log('🚀 Schwerelosigkeits-System aktiv!');
     </script>
 </body>
 </html>
