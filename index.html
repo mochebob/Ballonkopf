@@ -335,7 +335,7 @@
                 });
                 
                 // Bounding Sphere für Kollision
-                this.radius = 0.3; // ANPASSEN: Kollisions-Radius
+                this.radius = 0.9; // ANPASSEN: Kollisions-Radius (größer für 3x Köpfe)
             }
             
             initJelly() {
@@ -466,13 +466,13 @@
             'gurke.glb',
             (gltf) => {
                 pickleModel = gltf.scene;
-                pickleModel.scale.setScalar(0.08); // ANPASSEN: Gurken-Größe
+                pickleModel.scale.setScalar(0.15); // ANPASSEN: Gurken-Größe (größer für größere Köpfe)
                 scene.add(pickleModel);
             },
             undefined,
             (error) => {
                 // Fallback
-                const geometry = new THREE.SphereGeometry(0.06, 16, 16);
+                const geometry = new THREE.SphereGeometry(0.1, 16, 16); // Größer
                 const material = new THREE.MeshStandardMaterial({
                     color: 0x00ff00,
                     emissive: 0x00ff00,
@@ -526,21 +526,23 @@
                 
                 if (speed < 0) return; // Already separating
                 
-                const impulse = normal.clone().multiplyScalar(speed * 0.8); // ANPASSEN: Bounce-Stärke
+                const impulse = normal.clone().multiplyScalar(speed * 1.2); // ANPASSEN: Bounce-Stärke (erhöht von 0.8)
                 
                 head1.velocity.sub(impulse);
                 head2.velocity.add(impulse);
                 
                 // Gummi-Deformation an Kollisionspunkt
                 const collisionPoint = head1.position.clone().add(normal.clone().multiplyScalar(head1.radius));
-                head1.applyForce(normal.clone().multiplyScalar(-0.5), collisionPoint);
-                head2.applyForce(normal.clone().multiplyScalar(0.5), collisionPoint);
+                head1.applyForce(normal.clone().multiplyScalar(-0.8), collisionPoint); // Stärker
+                head2.applyForce(normal.clone().multiplyScalar(0.8), collisionPoint);
                 
                 // Separate overlapping heads
                 const overlap = minDist - distance;
                 const separation = normal.clone().multiplyScalar(overlap * 0.5);
                 head1.position.sub(separation);
                 head2.position.add(separation);
+                
+                console.log('💥 Kopf-Kollision!'); // Debug
             }
         }
 
@@ -551,11 +553,14 @@
             heads.forEach(head => {
                 const distance = head.position.distanceTo(pickleModel.position);
                 
-                if (distance < head.radius + 0.1) { // ANPASSEN: Gurken-Radius
+                if (distance < head.radius + 0.15) { // ANPASSEN: Gurken-Radius (0.15 für größere Gurke)
                     const force = pickleModel.position.clone().sub(head.position).normalize();
-                    force.multiplyScalar(pickleVelocity.length() * 2.0); // ANPASSEN: Stoß-Kraft
+                    force.multiplyScalar(-1); // Invertiert: Kopf fliegt WEG von Gurke
+                    force.multiplyScalar(pickleVelocity.length() * 3.0); // ANPASSEN: Stoß-Kraft (erhöht)
                     
                     head.applyForce(force, pickleModel.position);
+                    
+                    console.log('💥 Gurke trifft Kopf!'); // Debug
                 }
             });
         }
@@ -573,7 +578,7 @@
                 const box = new THREE.Box3().setFromObject(headTemplate);
                 const size = box.getSize(new THREE.Vector3());
                 const maxDim = Math.max(size.x, size.y, size.z);
-                const scale = 0.4 / maxDim; // ANPASSEN: Kopf-Größe (0.4 = klein)
+                const scale = 1.2 / maxDim; // ANPASSEN: Kopf-Größe (1.2 = 3x größer als vorher)
                 
                 headTemplate.scale.setScalar(scale);
                 
@@ -604,7 +609,7 @@
                 console.log('Fallback Spheres');
                 // Fallback: 5 Kugeln
                 for (let i = 0; i < 5; i++) {
-                    const geometry = new THREE.SphereGeometry(0.3, 32, 32);
+                    const geometry = new THREE.SphereGeometry(0.9, 64, 64); // 3x größer
                     const material = new THREE.MeshStandardMaterial({
                         color: 0xe8e8e8,
                         roughness: 0.5,
