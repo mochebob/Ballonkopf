@@ -177,9 +177,9 @@
     <div class="ticker-wrapper">
         <div class="ticker">
             <!-- Text wiederholt sich für endlose Animation -->
-            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="/cdn-cgi/l/email-protection#3c51534e554846124f5d4f4f7c515d55505e534412534e5b">schreib mir</a></div>
-            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="/cdn-cgi/l/email-protection#fb969489928f81d5889a8888bb969a9297999483d594899c">schreib mir</a></div>
-            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="/cdn-cgi/l/email-protection#7f12100d160b05510c1e0c0c3f121e16131d100751100d18">schreib mir</a></div>
+            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="mailto:moritz.sass@mailbox.org">schreib mir</a></div>
+            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="mailto:moritz.sass@mailbox.org">schreib mir</a></div>
+            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="mailto:moritz.sass@mailbox.org">schreib mir</a></div>
         </div>
     </div>
 
@@ -256,7 +256,7 @@
         <div class="loading">Lädt 3D Scene...</div>
     </div>
 
-    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script type="importmap">
+    <script type="importmap">
     {
         "imports": {
             "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -508,17 +508,7 @@
         function updateCollision() {
             if (!headModel || !pickleModel || headVertices.length === 0) return;
 
-            // Finde das tatsächliche Mesh im Head Model
-            let headMesh = null;
-            headModel.traverse((child) => {
-                if (child.isMesh && !headMesh) {
-                    headMesh = child;
-                }
-            });
-
-            if (!headMesh) return;
-
-            const geometry = headMesh.geometry;
+            const geometry = headModel.children[0].geometry; // Annahme: Head hat Child-Mesh
             const positions = geometry.attributes.position;
 
             const picklePos = pickleModel.position;
@@ -528,7 +518,7 @@
                 const vertex = headVertices[i];
                 
                 // Konvertiere zu World Space
-                const worldVertex = vertex.clone().applyMatrix4(headMesh.matrixWorld);
+                const worldVertex = vertex.clone().applyMatrix4(headModel.matrixWorld);
                 
                 // Berechne Distanz zur Gurke
                 const distance = worldVertex.distanceTo(picklePos);
@@ -543,7 +533,7 @@
                     const velocityBoost = pickleVelocity.length() * 2.0;
                     
                     // Zurück in Local Space
-                    const worldToLocal = new THREE.Matrix4().copy(headMesh.matrixWorld).invert();
+                    const worldToLocal = new THREE.Matrix4().copy(headModel.matrixWorld).invert();
                     pushDir.applyMatrix4(worldToLocal);
                     pushDir.normalize();
                     
@@ -603,8 +593,9 @@
            ============================================ */
         const headLoader = new GLTFLoader();
         headLoader.load(
-            'your-model.glb', // ANPASSEN: Pfad zu deinem Kopf-Model
+            'kopf.glb', // ANPASSEN: Pfad zu deinem Kopf-Model
             (gltf) => {
+                console.log('Kopf-Model geladen!');
                 headModel = gltf.scene;
                 
                 // Center and scale
@@ -632,12 +623,9 @@
                 scene.add(headModel);
                 document.querySelector('.loading').style.display = 'none';
             },
-            (progress) => {
-                const percent = (progress.loaded / progress.total * 100).toFixed(0);
-                document.querySelector('.loading').textContent = `Lädt ${percent}%`;
-            },
+            undefined,
             (error) => {
-                console.log('Model not found, using fallback geometry');
+                console.log('Kopf-Model nicht gefunden, nutze Fallback');
                 createFallbackHead();
             }
         );
@@ -659,4 +647,15 @@
             requestAnimationFrame(animate);
             
             updatePickle();         // Gurken-Bewegung
-            updateCollision();      // Kolli
+            updateCollision();      // Kollision & Kopf-Reaktion
+            updateHeadRotation();   // Kopf-Rotation beim Scrollen
+            
+            composer.render();
+        }
+
+        animate();
+        
+        console.log('Scene initialisiert!');
+    </script>
+</body>
+</html>
