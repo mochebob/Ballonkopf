@@ -43,18 +43,15 @@
         .ticker-item {
             font-family: 'Inknut Antiqua', serif;
             font-weight: 700;
-            font-size: 24px;
+            font-size: 100px;
             color: #00ff00;
-            text-shadow: 
-                0 0 10px #00ff00,
-                0 0 20px #00ff00,
-                0 0 30px #00ff00;
+    
             padding: 0 50px;
             letter-spacing: 0.02em;
         }
 
         .ticker-item a {
-            color: #00ff00;
+           
             text-decoration: none;
             border-bottom: 2px solid #00ff00;
             transition: all 0.3s;
@@ -164,9 +161,9 @@
 <body>
     <div class="ticker-wrapper">
         <div class="ticker">
-            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="/cdn-cgi/l/email-protection#e885879a819c92c69b899b9ba8858981848a8790c6879a8f">schreib mir</a></div>
-            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="/cdn-cgi/l/email-protection#5a373528332e2074293b29291a373b33363835227435283d">schreib mir</a></div>
-            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="/cdn-cgi/l/email-protection#a0cdcfd2c9d4da8ed3c1d3d3e0cdc1c9ccc2cfd88ecfd2c7">schreib mir</a></div>
+            <div class="ticker-item">Moritz Sass Art Direction/Motion Design</div>
+             <div class="ticker-item">Moritz Sass Art Direction/Motion Design</div>
+             <div class="ticker-item">Moritz Sass Art Direction/Motion Design</div>
         </div>
     </div>
 
@@ -237,7 +234,7 @@
         <div class="loading">Lädt 3D Scene...</div>
     </div>
 
-    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script type="importmap">
+    <script type="importmap">
     {
         "imports": {
             "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -306,22 +303,20 @@
                 this.model = model.clone();
                 this.group.add(this.model);
                 
-                // Position & Velocity für 2D-Bewegung (nur X und Y)
+                // Position & Velocity für Schwerelosigkeit
                 this.position = position.clone();
-                this.position.z = 0; // ALLE auf gleicher Ebene!
-                
                 this.velocity = new THREE.Vector3(
-                    (Math.random() - 0.5) * 0.02, // ANPASSEN: Startgeschwindigkeit
-                    (Math.random() - 0.5) * 0.02,
-                    0 // Keine Z-Bewegung!
+                    (Math.random() - 0.5) * 0.01, // ANPASSEN: Startgeschwindigkeit
+                    (Math.random() - 0.5) * 0.01,
+                    (Math.random() - 0.5) * 0.005
                 );
                 this.rotation = new THREE.Vector3(
-                    0,
-                    0,
-                    Math.random() * 0.01 // Nur Z-Rotation
+                    Math.random() * 0.01,
+                    Math.random() * 0.01,
+                    Math.random() * 0.01
                 );
                 
-                this.group.position.copy(this.position);
+                this.group.position.copy(position);
                 
                 // Jelly/Gummi Physics
                 this.originalVertices = [];
@@ -415,32 +410,17 @@
                 positions.needsUpdate = true;
             }
             
-            update(bounds, otherHeads) {
-                // ANZIEHUNGSKRAFT zu anderen Köpfen
-                otherHeads.forEach(otherHead => {
-                    if (otherHead === this) return;
-                    
-                    const direction = otherHead.position.clone().sub(this.position);
-                    const distance = direction.length();
-                    
-                    if (distance > 0.1) { // Vermeidet Division durch 0
-                        direction.normalize();
-                        const attractionForce = 0.0003; // ANPASSEN: Stärke der Anziehung (höher = stärker)
-                        this.velocity.add(direction.multiplyScalar(attractionForce));
-                    }
-                });
-                
-                // Position updaten (nur X und Y!)
-                this.position.x += this.velocity.x;
-                this.position.y += this.velocity.y;
-                this.position.z = 0; // IMMER auf Z=0 halten!
-                
+            update(bounds) {
+                // Schwerelosigkeit: Position updaten
+                this.position.add(this.velocity);
                 this.group.position.copy(this.position);
                 
-                // Nur Z-Rotation
+                // Sanfte Rotation
+                this.group.rotation.x += this.rotation.x;
+                this.group.rotation.y += this.rotation.y;
                 this.group.rotation.z += this.rotation.z;
                 
-                // Bounds checking (nur X und Y)
+                // Bounds checking (Bounce an Wänden)
                 if (Math.abs(this.position.x) > bounds.x) {
                     this.velocity.x *= -0.8;
                     this.position.x = Math.sign(this.position.x) * bounds.x;
@@ -449,9 +429,13 @@
                     this.velocity.y *= -0.8;
                     this.position.y = Math.sign(this.position.y) * bounds.y;
                 }
+                if (Math.abs(this.position.z) > bounds.z) {
+                    this.velocity.z *= -0.8;
+                    this.position.z = Math.sign(this.position.z) * bounds.z;
+                }
                 
-                // Velocity Damping
-                this.velocity.multiplyScalar(0.995);
+                // Velocity Damping (langsam abbremsen)
+                this.velocity.multiplyScalar(0.995); // ANPASSEN: Wie schnell abbremst
                 
                 // Jelly Update
                 this.updateJelly();
@@ -501,66 +485,23 @@
 
             smoothMouse.lerp(mouse, 0.15);
 
+            const depthVariation = smoothMouse.x * 0.5;
             const targetPos = new THREE.Vector3(
                 smoothMouse.x * 4.0, // ANPASSEN: Bewegungsbereich
                 smoothMouse.y * 3.0,
-                0 // Gurke AUCH auf Z=0!
+                2.0 + depthVariation
             );
 
             const direction = targetPos.clone().sub(pickleModel.position);
             pickleVelocity.add(direction.multiplyScalar(pickleSpeed));
             pickleVelocity.multiplyScalar(pickleDamping);
-            
-            pickleModel.position.x += pickleVelocity.x;
-            pickleModel.position.y += pickleVelocity.y;
-            pickleModel.position.z = 0; // IMMER auf Z=0!
+            pickleModel.position.add(pickleVelocity);
 
             if (pickleVelocity.length() > 0.01) {
                 pickleModel.rotation.z = Math.atan2(pickleVelocity.y, pickleVelocity.x);
+                pickleModel.rotation.y += 0.03;
             }
         }
-
-        /* ============================================
-           SOUND SYSTEM
-           ============================================ */
-        const collisionSounds = [];
-        let soundsLoaded = false;
-        
-        // Lade 4 Sound-Files
-        function loadSounds() {
-            const soundFiles = [
-                'oh1.mp3', // ANPASSEN: Deine Sound-Files
-                'oh2.mp3',
-                'oh3.mp3',
-                'oh4.mp3'
-            ];
-            
-            soundFiles.forEach(file => {
-                const audio = new Audio(file);
-                audio.volume = 0.5; // ANPASSEN: Lautstärke (0.0 - 1.0)
-                collisionSounds.push(audio);
-            });
-            
-            soundsLoaded = true;
-            console.log('🔊 4 Sounds geladen');
-        }
-        
-        // Spiele zufälligen Sound
-        function playCollisionSound() {
-            if (!soundsLoaded || collisionSounds.length === 0) return;
-            
-            const randomSound = collisionSounds[Math.floor(Math.random() * collisionSounds.length)];
-            
-            // Clone sound to allow overlapping
-            const sound = randomSound.cloneNode();
-            sound.volume = 0.5;
-            sound.play().catch(err => {
-                console.log('Sound play failed:', err);
-            });
-        }
-        
-        // Lade Sounds beim Start
-        loadSounds();
 
         /* ============================================
            HEADS ARRAY & COLLISION
@@ -598,10 +539,7 @@
                 head1.position.sub(separation);
                 head2.position.add(separation);
                 
-                // SOUND ABSPIELEN!
-                playCollisionSound();
-                
-                console.log('💥 Kopf-Kollision! OH!'); // Debug
+                console.log('💥 Kopf-Kollision!'); // Debug
             }
         }
 
@@ -645,13 +583,13 @@
                 const center = box.getCenter(new THREE.Vector3());
                 headTemplate.position.sub(center.multiplyScalar(scale));
                 
-                // Erstelle 5 Köpfe an verschiedenen Positionen (alle auf Z=0)
+                // Erstelle 5 Köpfe an verschiedenen Positionen
                 const positions = [
                     new THREE.Vector3(-2, 1, 0),
-                    new THREE.Vector3(2, -1, 0),
-                    new THREE.Vector3(0, 2, 0),
-                    new THREE.Vector3(-1.5, -1.5, 0),
-                    new THREE.Vector3(1.5, 1.5, 0)
+                    new THREE.Vector3(2, -1, -0.5),
+                    new THREE.Vector3(0, 2, 0.5),
+                    new THREE.Vector3(-1.5, -1.5, -0.3),
+                    new THREE.Vector3(1.5, 1.5, 0.3)
                 ];
                 
                 positions.forEach(pos => {
@@ -681,7 +619,7 @@
                     const pos = new THREE.Vector3(
                         (Math.random() - 0.5) * 4,
                         (Math.random() - 0.5) * 3,
-                        0 // Alle auf Z=0
+                        (Math.random() - 0.5) * 2
                     );
                     
                     const head = new FloatingHead(model, pos);
@@ -707,9 +645,9 @@
             updatePickle();
             checkPickleCollision();
             
-            // Update alle Köpfe (mit Anziehung)
+            // Update alle Köpfe
             heads.forEach(head => {
-                head.update(bounds, heads); // Übergebe alle Köpfe für Anziehung
+                head.update(bounds);
             });
             
             // Kopf-zu-Kopf Kollision
@@ -724,7 +662,7 @@
 
         animate();
         
-        console.log('🚀 2D Schwerelosigkeits-System mit Anziehung aktiv!');
+        console.log('🚀 Schwerelosigkeits-System aktiv!');
     </script>
 </body>
 </html>
