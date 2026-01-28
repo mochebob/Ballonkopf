@@ -277,9 +277,7 @@
         document.getElementById('scene-container').appendChild(renderer.domElement);
 
         const composer = new EffectComposer(renderer);
-const renderPass = new RenderPass(scene, camera);
-renderPass.clearAlpha = 0; // Transparent background für Composer
-composer.addPass(renderPass);
+        composer.addPass(new RenderPass(scene, camera));
 
         const bloomPass = new UnrealBloomPass(
             new THREE.Vector2(window.innerWidth, window.innerHeight),
@@ -485,16 +483,12 @@ composer.addPass(renderPass);
                     const vertex = headVertices[i];
                     const originalPos = headOriginalPositions[i];
                     
-                    const fixedStrength = Math.max(0, Math.min(1, (originalPos.y + 0.3) / 0.5));
-                    
                     const diff = originalPos.clone().sub(vertex);
-                    headVelocities[i].add(diff.multiplyScalar(headSpringback * fixedStrength));
+                    headVelocities[i].add(diff.multiplyScalar(headSpringback));
                     headVelocities[i].multiplyScalar(headDamping);
                     
-                    if (fixedStrength > 0.01) {
-                        vertex.add(headVelocities[i]);
-                        positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
-                    }
+                    vertex.add(headVelocities[i]);
+                    positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
                 }
                 positions.needsUpdate = true;
                 return;
@@ -504,9 +498,6 @@ composer.addPass(renderPass);
             for (let i = 0; i < positions.count; i++) {
                 const vertex = headVertices[i];
                 const originalPos = headOriginalPositions[i];
-                
-                const fixedThreshold = -0.3;
-                const fixedStrength = Math.max(0, Math.min(1, (originalPos.y - fixedThreshold) / 0.5));
                 
                 const worldVertex = vertex.clone().applyMatrix4(headModel.matrixWorld);
                 const distance = worldVertex.distanceTo(picklePos);
@@ -523,17 +514,15 @@ composer.addPass(renderPass);
                     pushDir.applyMatrix4(worldToLocal);
                     pushDir.normalize();
                     
-                    headVelocities[i].add(pushDir.multiplyScalar(force * (1 + velocityBoost) * fixedStrength));
+                    headVelocities[i].add(pushDir.multiplyScalar(force * (1 + velocityBoost)));
                 }
 
                 const diff = originalPos.clone().sub(vertex);
-                headVelocities[i].add(diff.multiplyScalar(headSpringback * fixedStrength));
+                headVelocities[i].add(diff.multiplyScalar(headSpringback));
                 headVelocities[i].multiplyScalar(headDamping);
 
-                if (fixedStrength > 0.01) {
-                    vertex.add(headVelocities[i]);
-                    positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
-                }
+                vertex.add(headVelocities[i]);
+                positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
             }
 
             positions.needsUpdate = true;
