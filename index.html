@@ -337,6 +337,11 @@
         let scrollY = 0;
         let smoothScrollY = 0;
         
+        // FPS Counter für Performance-Check
+        let frameCount = 0;
+        let lastTime = performance.now();
+        let fps = 60;
+        
         window.addEventListener('scroll', () => {
             scrollY = window.scrollY;
         });
@@ -411,7 +416,17 @@
                 headVelocities.push(new THREE.Vector3());
             }
             
-            console.log(`Head Physics initialisiert: ${positions.count} Vertices`);
+            console.log(`⚠️ Head Physics: ${positions.count} Vertices`);
+            
+            // WARNUNG bei zu vielen Vertices
+            if (positions.count > 10000) {
+                console.error('❌ ZU VIELE VERTICES! (' + positions.count + ') - Wird extrem langsam!');
+                console.log('💡 Tipp: Decimiere dein Model in Blender auf ~5000 Vertices');
+            } else if (positions.count > 5000) {
+                console.warn('⚠️ Viele Vertices (' + positions.count + ') - Könnte langsam sein');
+            } else {
+                console.log('✅ Vertex Count OK für Physik');
+            }
         }
 
         function updatePickle() {
@@ -596,4 +611,16 @@
         function animate() {
             requestAnimationFrame(animate);
             
-     
+            updatePickle();
+            updateCollision();
+            updateHeadRotation();
+            
+            composer.render();
+        }
+
+        animate();
+        
+        console.log('Scene initialisiert!');
+    </script>
+</body>
+</html>
