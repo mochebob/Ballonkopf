@@ -610,8 +610,9 @@
            ============================================ */
         const headLoader = new GLTFLoader();
         headLoader.load(
-            'your-model.glb', // ANPASSEN: Pfad zu deinem Kopf-Model
+            'kopf.glb', // ANPASSEN: Pfad zu deinem Kopf-Model
             (gltf) => {
+                console.log('Kopf-Model geladen!'); // DEBUG
                 headModel = gltf.scene;
                 
                 // Center and scale
