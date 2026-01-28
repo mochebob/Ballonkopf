@@ -329,7 +329,7 @@
         const pickleSpeed = 0.15;
         const pickleDamping = 0.85;
         
-        const trailLength = 8;
+        const trailLength = 4;           // REDUZIERT: 4 statt 8 für Performance
         let pickleTrail = [];
         
         const mouse = new THREE.Vector2();
@@ -454,48 +454,65 @@
 
             const geometry = headModel.children[0].geometry;
             const positions = geometry.attributes.position;
-
             const picklePos = pickleModel.position;
 
+            // OPTIMIZATION: Nur wenn Gurke nah genug am Kopf ist, prüfen wir Kollision
+            const headCenter = new THREE.Vector3();
+            headModel.getWorldPosition(headCenter);
+            const distanceToHead = headCenter.distanceTo(picklePos);
+            
+            // Wenn Gurke zu weit weg (>1.5), keine Kollision prüfen
+            if (distanceToHead > 1.5) {
+                // Nur zurückfedern
+                for (let i = 0; i < positions.count; i++) {
+                    const vertex = headVertices[i];
+                    const originalPos = headOriginalPositions[i];
+                    
+                    const fixedStrength = Math.max(0, Math.min(1, (originalPos.y + 0.3) / 0.5));
+                    
+                    const diff = originalPos.clone().sub(vertex);
+                    headVelocities[i].add(diff.multiplyScalar(headSpringback * fixedStrength));
+                    headVelocities[i].multiplyScalar(headDamping);
+                    
+                    if (fixedStrength > 0.01) {
+                        vertex.add(headVelocities[i]);
+                        positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
+                    }
+                }
+                positions.needsUpdate = true;
+                return;
+            }
+
+            // Normale Kollisionsprüfung wenn Gurke nah ist
             for (let i = 0; i < positions.count; i++) {
                 const vertex = headVertices[i];
                 const originalPos = headOriginalPositions[i];
                 
-                // GUMMIKOPF: Unterer Teil ist FIXIERT (wie festgeklebt)
-                // Je weiter unten, desto weniger Bewegung
-                const fixedThreshold = -0.3; // ANPASSEN: Ab welcher Höhe fixiert? (negativ = unten)
+                const fixedThreshold = -0.3;
                 const fixedStrength = Math.max(0, Math.min(1, (originalPos.y - fixedThreshold) / 0.5));
-                // fixedStrength: 0 = komplett fixiert (unten), 1 = frei beweglich (oben)
                 
                 const worldVertex = vertex.clone().applyMatrix4(headModel.matrixWorld);
-                
                 const distance = worldVertex.distanceTo(picklePos);
 
-                // EXTREME COLLISION
                 if (distance < collisionRadius) {
                     const pushDir = worldVertex.clone().sub(picklePos).normalize();
                     
                     const proximityFactor = Math.max(0, 1 - distance / collisionRadius);
-                    const force = Math.pow(proximityFactor, 2) * collisionForce * 6.0; // 6x stärker!
+                    const force = Math.pow(proximityFactor, 2) * collisionForce * 6.0;
                     
-                    const velocityBoost = pickleVelocity.length() * 8.0; // 8x Impact!
+                    const velocityBoost = pickleVelocity.length() * 8.0;
                     
                     const worldToLocal = new THREE.Matrix4().copy(headModel.matrixWorld).invert();
                     pushDir.applyMatrix4(worldToLocal);
                     pushDir.normalize();
                     
-                    // Kraft wird durch fixedStrength reduziert (unten = weniger Bewegung)
                     headVelocities[i].add(pushDir.multiplyScalar(force * (1 + velocityBoost) * fixedStrength));
                 }
 
-                // Spring zurück - auch mit fixedStrength multipliziert
                 const diff = originalPos.clone().sub(vertex);
                 headVelocities[i].add(diff.multiplyScalar(headSpringback * fixedStrength));
-
-                // Damping
                 headVelocities[i].multiplyScalar(headDamping);
 
-                // Update Position - nur wenn nicht komplett fixiert
                 if (fixedStrength > 0.01) {
                     vertex.add(headVelocities[i]);
                     positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
@@ -503,7 +520,7 @@
             }
 
             positions.needsUpdate = true;
-            geometry.computeVertexNormals();
+            // geometry.computeVertexNormals(); // DEAKTIVIERT für Performance
         }
 
         function updateHeadRotation() {
