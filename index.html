@@ -164,9 +164,9 @@
 <body>
     <div class="ticker-wrapper">
         <div class="ticker">
-            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="mailto:moritz.sass@mailbox.org">schreib mir</a></div>
-            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="mailto:moritz.sass@mailbox.org">schreib mir</a></div>
-            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="mailto:moritz.sass@mailbox.org">schreib mir</a></div>
+            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="/cdn-cgi/l/email-protection#cda0a2bfa4b9b7e3beacbebe8da0aca4a1afa2b5e3a2bfaa">schreib mir</a></div>
+            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="/cdn-cgi/l/email-protection#7b161409120f0155081a08083b161a12171914035514091c">schreib mir</a></div>
+            <div class="ticker-item">Moritz Sass Art Direction/Motion Design - Ruf mich an 01744968052 oder <a href="/cdn-cgi/l/email-protection#503d3f2239242a7e23312323103d31393c323f287e3f2237">schreib mir</a></div>
         </div>
     </div>
 
@@ -237,7 +237,7 @@
         <div class="loading">Lädt 3D Scene...</div>
     </div>
 
-    <script type="importmap">
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script type="importmap">
     {
         "imports": {
             "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -255,6 +255,7 @@
         import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
         const scene = new THREE.Scene();
+        scene.background = null; // KEIN Hintergrund - komplett transparent!
         
         const camera = new THREE.PerspectiveCamera(
             50,
@@ -317,11 +318,11 @@
         let headVelocities = [];
         let headOriginalPositions = [];
         
-        // EXTREME COLLISION PARAMETERS
-        const collisionForce = 1.5;
-        const headSpringback = 0.04;
-        const headDamping = 0.85;
-        const collisionRadius = 0.45;
+        // EXTREME COLLISION PARAMETERS - Gurke geht NICHT durch!
+        const collisionForce = 2.0;      // Sehr stark
+        const headSpringback = 0.03;     // Langsamer zurück = mehr Stretch
+        const headDamping = 0.82;        // Weniger Dämpfung = mehr Wackel
+        const collisionRadius = 0.5;     // Größerer Bereich
         
         let pickleVelocity = new THREE.Vector3();
         let pickleTargetPos = new THREE.Vector3();
@@ -418,10 +419,14 @@
 
             smoothMouse.lerp(mouse, 0.1);
 
+            // Gurke bewegt sich auch in der TIEFE (Z-Achse)
+            // Je weiter rechts die Maus, desto weiter hinten die Gurke
+            const depthVariation = smoothMouse.x * 0.8; // ANPASSEN: Wie stark Tiefenvariation
+
             pickleTargetPos.set(
                 smoothMouse.x * 2.0,
                 smoothMouse.y * 2.0,
-                0.3
+                0.3 + depthVariation  // Variiert zwischen -0.5 und 1.1
             );
 
             const direction = pickleTargetPos.clone().sub(pickleModel.position);
@@ -454,34 +459,47 @@
 
             for (let i = 0; i < positions.count; i++) {
                 const vertex = headVertices[i];
+                const originalPos = headOriginalPositions[i];
+                
+                // GUMMIKOPF: Unterer Teil ist FIXIERT (wie festgeklebt)
+                // Je weiter unten, desto weniger Bewegung
+                const fixedThreshold = -0.3; // ANPASSEN: Ab welcher Höhe fixiert? (negativ = unten)
+                const fixedStrength = Math.max(0, Math.min(1, (originalPos.y - fixedThreshold) / 0.5));
+                // fixedStrength: 0 = komplett fixiert (unten), 1 = frei beweglich (oben)
                 
                 const worldVertex = vertex.clone().applyMatrix4(headModel.matrixWorld);
                 
                 const distance = worldVertex.distanceTo(picklePos);
 
-                // EXTREME COLLISION - Gurke geht NICHT durch!
+                // EXTREME COLLISION
                 if (distance < collisionRadius) {
                     const pushDir = worldVertex.clone().sub(picklePos).normalize();
                     
                     const proximityFactor = Math.max(0, 1 - distance / collisionRadius);
-                    const force = Math.pow(proximityFactor, 2) * collisionForce * 4.0;
+                    const force = Math.pow(proximityFactor, 2) * collisionForce * 6.0; // 6x stärker!
                     
-                    const velocityBoost = pickleVelocity.length() * 6.0;
+                    const velocityBoost = pickleVelocity.length() * 8.0; // 8x Impact!
                     
                     const worldToLocal = new THREE.Matrix4().copy(headModel.matrixWorld).invert();
                     pushDir.applyMatrix4(worldToLocal);
                     pushDir.normalize();
                     
-                    headVelocities[i].add(pushDir.multiplyScalar(force * (1 + velocityBoost)));
+                    // Kraft wird durch fixedStrength reduziert (unten = weniger Bewegung)
+                    headVelocities[i].add(pushDir.multiplyScalar(force * (1 + velocityBoost) * fixedStrength));
                 }
 
-                const diff = headOriginalPositions[i].clone().sub(vertex);
-                headVelocities[i].add(diff.multiplyScalar(headSpringback));
+                // Spring zurück - auch mit fixedStrength multipliziert
+                const diff = originalPos.clone().sub(vertex);
+                headVelocities[i].add(diff.multiplyScalar(headSpringback * fixedStrength));
 
+                // Damping
                 headVelocities[i].multiplyScalar(headDamping);
 
-                vertex.add(headVelocities[i]);
-                positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
+                // Update Position - nur wenn nicht komplett fixiert
+                if (fixedStrength > 0.01) {
+                    vertex.add(headVelocities[i]);
+                    positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
+                }
             }
 
             positions.needsUpdate = true;
@@ -561,16 +579,4 @@
         function animate() {
             requestAnimationFrame(animate);
             
-            updatePickle();
-            updateCollision();
-            updateHeadRotation();
-            
-            composer.render();
-        }
-
-        animate();
-        
-        console.log('Scene initialisiert!');
-    </script>
-</body>
-</html>
+     
