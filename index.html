@@ -603,16 +603,9 @@
            ============================================ */
         const headLoader = new GLTFLoader();
         headLoader.load(
-            'kopf.glb', // ANPASSEN: Pfad zu deinem Kopf-Model
+            'your-model.glb', // ANPASSEN: Pfad zu deinem Kopf-Model
             (gltf) => {
-                console.log('✅ Kopf-Model erfolgreich geladen!');
                 headModel = gltf.scene;
-                
-                // Debug: Zeige Struktur
-                console.log('Model Struktur:', headModel);
-                headModel.traverse((child) => {
-                    console.log('- Child gefunden:', child.type, child.name);
-                });
                 
                 // Center and scale
                 const box = new THREE.Box3().setFromObject(headModel);
@@ -624,23 +617,16 @@
                 headModel.scale.setScalar(scale);
                 headModel.position.sub(center.multiplyScalar(scale));
                 
-                console.log('Model skaliert:', scale, 'Größe:', size);
-                
                 // Find main mesh
                 let mainMesh = null;
                 headModel.traverse((child) => {
-                    if (child.isMesh) {
-                        if (!mainMesh) {
-                            mainMesh = child;
-                            console.log('✅ Main Mesh gefunden:', child.name, 'Vertices:', child.geometry.attributes.position.count);
-                        }
+                    if (child.isMesh && !mainMesh) {
+                        mainMesh = child;
                     }
                 });
                 
                 if (mainMesh) {
                     initHeadPhysics(mainMesh);
-                } else {
-                    console.error('❌ Kein Mesh im Model gefunden!');
                 }
                 
                 scene.add(headModel);
@@ -648,12 +634,10 @@
             },
             (progress) => {
                 const percent = (progress.loaded / progress.total * 100).toFixed(0);
-                console.log(`Lade Kopf: ${percent}%`);
-                document.querySelector('.loading').textContent = `Lädt Kopf ${percent}%`;
+                document.querySelector('.loading').textContent = `Lädt ${percent}%`;
             },
             (error) => {
-                console.log('❌ Kopf-Model nicht gefunden:', error);
-                console.log('Erstelle Fallback Sphere...');
+                console.log('Model not found, using fallback geometry');
                 createFallbackHead();
             }
         );
