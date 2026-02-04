@@ -184,7 +184,7 @@
                     const distance = direction.length();
                     if (distance > 0.1) {
                         direction.normalize();
-                        const attractionForce = 0.00008; // SEHR GERING
+                        const attractionForce = 0.000008; // SEHR GERING
                         this.velocity.add(direction.multiplyScalar(attractionForce));
                     }
                 });
