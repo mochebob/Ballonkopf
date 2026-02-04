@@ -98,14 +98,18 @@
                 this.group.add(this.model);
                 
                 this.position = position.clone();
-                this.position.z = 0;
+                // 3D Position (nicht auf Z=0 festgelegt)
                 
                 this.velocity = new THREE.Vector3(
-                    (Math.random() - 0.5) * 0.01, // Langsamer Start
                     (Math.random() - 0.5) * 0.01,
-                    0
+                    (Math.random() - 0.5) * 0.01,
+                    (Math.random() - 0.5) * 0.005 // Z-Bewegung aktiviert!
                 );
-                this.rotation = new THREE.Vector3(0, 0, Math.random() * 0.005);
+                this.rotation = new THREE.Vector3(
+                    Math.random() * 0.003,
+                    Math.random() * 0.003,
+                    Math.random() * 0.005
+                );
                 
                 this.group.position.copy(this.position);
                 
@@ -184,7 +188,7 @@
                     const distance = direction.length();
                     if (distance > 0.1) {
                         direction.normalize();
-                        const attractionForce = 0.000008; // SEHR GERING
+                        const attractionForce = 0.000008; // SEHR SCHWACH
                         this.velocity.add(direction.multiplyScalar(attractionForce));
                     }
                 });
@@ -198,18 +202,26 @@
                 
                 this.position.x += this.velocity.x;
                 this.position.y += this.velocity.y;
-                this.position.z = 0;
+                this.position.z += this.velocity.z; // 3D Bewegung!
                 this.group.position.copy(this.position);
+                
+                // 3D Rotation auf allen Achsen
+                this.group.rotation.x += this.rotation.x;
+                this.group.rotation.y += this.rotation.y;
                 this.group.rotation.z += this.rotation.z;
                 
-                // Bounds mit mehr Energy Loss
+                // Bounds mit mehr Energy Loss (jetzt auch Z)
                 if (Math.abs(this.position.x) > bounds.x) {
-                    this.velocity.x *= -0.4; // Viel Energy Loss
+                    this.velocity.x *= -0.4;
                     this.position.x = Math.sign(this.position.x) * bounds.x;
                 }
                 if (Math.abs(this.position.y) > bounds.y) {
                     this.velocity.y *= -0.4;
                     this.position.y = Math.sign(this.position.y) * bounds.y;
+                }
+                if (Math.abs(this.position.z) > bounds.z) {
+                    this.velocity.z *= -0.4;
+                    this.position.z = Math.sign(this.position.z) * bounds.z;
                 }
                 
                 // Kontinuierliche Abbremsung
@@ -220,7 +232,128 @@
         }
 
         const heads = [];
+        const pickles = []; // Array für 3 Gurken
         const bounds = new THREE.Vector3(4, 3, 2);
+
+        // Lade Gurken-Model
+        const pickleLoader = new GLTFLoader();
+        pickleLoader.load(
+            'gurke.glb',
+            (gltf) => {
+                // Erstelle 3 Gurken an verschiedenen Positionen
+                const picklePositions = [
+                    new THREE.Vector3(-3, 0, 0.5),
+                    new THREE.Vector3(3, 1, -0.5),
+                    new THREE.Vector3(0, -2, 0.3)
+                ];
+                
+                picklePositions.forEach(pos => {
+                    const pickle = gltf.scene.clone();
+                    pickle.scale.setScalar(0.12); // ANPASSEN: Gurken-Größe
+                    pickle.position.copy(pos);
+                    
+                    // Gurken-Physik
+                    pickle.userData.velocity = new THREE.Vector3(
+                        (Math.random() - 0.5) * 0.008,
+                        (Math.random() - 0.5) * 0.008,
+                        (Math.random() - 0.5) * 0.004
+                    );
+                    pickle.userData.rotation = new THREE.Vector3(
+                        Math.random() * 0.01,
+                        Math.random() * 0.01,
+                        Math.random() * 0.01
+                    );
+                    pickle.userData.radius = 0.15; // Kollisions-Radius
+                    
+                    pickles.push(pickle);
+                    scene.add(pickle);
+                });
+                
+                console.log('✅ 3 Gurken erstellt!');
+            },
+            undefined,
+            (error) => {
+                // Fallback: 3 grüne Kugeln
+                const picklePositions = [
+                    new THREE.Vector3(-3, 0, 0.5),
+                    new THREE.Vector3(3, 1, -0.5),
+                    new THREE.Vector3(0, -2, 0.3)
+                ];
+                
+                picklePositions.forEach(pos => {
+                    const geometry = new THREE.SphereGeometry(0.12, 16, 16);
+                    const material = new THREE.MeshStandardMaterial({
+                        color: 0x00ff00,
+                        emissive: 0x00ff00,
+                        emissiveIntensity: 0.2
+                    });
+                    const pickle = new THREE.Mesh(geometry, material);
+                    pickle.position.copy(pos);
+                    pickle.userData.velocity = new THREE.Vector3(
+                        (Math.random() - 0.5) * 0.008,
+                        (Math.random() - 0.5) * 0.008,
+                        (Math.random() - 0.5) * 0.004
+                    );
+                    pickle.userData.rotation = new THREE.Vector3(
+                        Math.random() * 0.01,
+                        Math.random() * 0.01,
+                        Math.random() * 0.01
+                    );
+                    pickle.userData.radius = 0.15;
+                    pickles.push(pickle);
+                    scene.add(pickle);
+                });
+            }
+        );
+
+        // Update Gurken
+        function updatePickles() {
+            pickles.forEach(pickle => {
+                // 3D Bewegung
+                pickle.position.x += pickle.userData.velocity.x;
+                pickle.position.y += pickle.userData.velocity.y;
+                pickle.position.z += pickle.userData.velocity.z;
+                
+                // 3D Rotation
+                pickle.rotation.x += pickle.userData.rotation.x;
+                pickle.rotation.y += pickle.userData.rotation.y;
+                pickle.rotation.z += pickle.userData.rotation.z;
+                
+                // Bounds
+                if (Math.abs(pickle.position.x) > bounds.x) {
+                    pickle.userData.velocity.x *= -0.5;
+                    pickle.position.x = Math.sign(pickle.position.x) * bounds.x;
+                }
+                if (Math.abs(pickle.position.y) > bounds.y) {
+                    pickle.userData.velocity.y *= -0.5;
+                    pickle.position.y = Math.sign(pickle.position.y) * bounds.y;
+                }
+                if (Math.abs(pickle.position.z) > bounds.z) {
+                    pickle.userData.velocity.z *= -0.5;
+                    pickle.position.z = Math.sign(pickle.position.z) * bounds.z;
+                }
+                
+                // Damping
+                pickle.userData.velocity.multiplyScalar(0.99);
+            });
+        }
+
+        // Gurke-Kopf Kollision
+        function checkPickleHeadCollisions() {
+            pickles.forEach(pickle => {
+                heads.forEach(head => {
+                    const distance = pickle.position.distanceTo(head.position);
+                    if (distance < pickle.userData.radius + head.radius) {
+                        const normal = head.position.clone().sub(pickle.position).normalize();
+                        const force = normal.clone().multiplyScalar(-0.3);
+                        head.applyForce(force, pickle.position);
+                        
+                        // Gurke bounced auch
+                        pickle.userData.velocity.add(normal.clone().multiplyScalar(-0.02));
+                    }
+                });
+            });
+        }
 
         function checkHeadCollision(head1, head2) {
             const distance = head1.position.distanceTo(head2.position);
@@ -261,11 +394,11 @@
                 headTemplate.position.sub(center.multiplyScalar(scale));
                 
                 const positions = [
-                    new THREE.Vector3(-2, 1, 0),
-                    new THREE.Vector3(2, -1, 0),
+                    new THREE.Vector3(-2, 1, -0.5),
+                    new THREE.Vector3(2, -1, 0.5),
                     new THREE.Vector3(0, 2, 0),
-                    new THREE.Vector3(-1.5, -1.5, 0),
-                    new THREE.Vector3(1.5, 1.5, 0)
+                    new THREE.Vector3(-1.5, -1.5, -0.3),
+                    new THREE.Vector3(1.5, 1.5, 0.4)
                 ];
                 
                 positions.forEach(pos => {
@@ -291,7 +424,7 @@
                     const pos = new THREE.Vector3(
                         (Math.random() - 0.5) * 4,
                         (Math.random() - 0.5) * 3,
-                        0
+                        (Math.random() - 0.5) * 2 // 3D Position
                     );
                     const head = new FloatingHead(model, pos);
                     heads.push(head);
@@ -309,6 +442,9 @@
 
         function animate() {
             requestAnimationFrame(animate);
+            
+            updatePickles(); // Gurken bewegen
+            checkPickleHeadCollisions(); // Gurken-Kopf Kollision
             
             heads.forEach(head => {
                 head.update(bounds, heads);
