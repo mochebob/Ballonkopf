@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Sparfuchs — Speiseplan & Angebotsradar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=Karla:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#F5F0E8;--card:#FFFDF8;--text:#1A1612;--soft:#7D7468;--accent:#C0482E;--accent2:#E86A4F;--accent-soft:#FCEAE5;--green:#3D7A35;--green-soft:#E4F0E1;--blue:#2E6BA8;--blue-soft:#E0EDF8;--gold:#C49A2C;--gold-soft:#FDF5E0;--border:#E4DDD2;--shadow:0 1px 8px rgba(26,22,18,.06);--shadow-h:0 4px 18px rgba(26,22,18,.10);--r:16px;--rs:10px;--font:'Karla',system-ui,sans-serif;--serif:'Fraunces',Georgia,serif}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{height:100%}body{font-family:var(--font);color:var(--text);background:var(--bg);min-height:100%;-webkit-font-smoothing:antialiased}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideIn{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:translateX(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+.fade-up{animation:fadeUp .35s ease both}.slide-in{animation:slideIn .3s ease both}
+.hot-pulse{animation:pulse 1.6s ease infinite}
+.spinner{width:20px;height:20px;border:2.5px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;display:inline-block;vertical-align:middle;margin-right:8px}
+.shell{max-width:520px;margin:0 auto;min-height:100vh;position:relative;padding-bottom:80px}
+.header{padding:26px 20px 16px;background:linear-gradient(145deg,#1A1612,#2D261E);color:#fff;border-radius:0 0 20px 20px;position:relative;overflow:hidden}
+.header::before{content:'';position:absolute;top:-40px;right:-30px;width:140px;height:140px;border-radius:50%;background:rgba(192,72,46,.2)}
+.header::after{content:'';position:absolute;bottom:-20px;left:30px;width:80px;height:80px;border-radius:50%;background:rgba(196,154,44,.12)}
+.header h1{font-family:var(--serif);font-size:28px;font-weight:600;letter-spacing:-.5px;position:relative}
+.header .sub{font-size:12px;opacity:.6;margin-top:2px;letter-spacing:.3px;position:relative}
+.stats{display:flex;gap:8px;margin-top:14px;position:relative}
+.stat{flex:1;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08);border-radius:var(--rs);padding:10px 6px;text-align:center;backdrop-filter:blur(4px)}
+.stat .n{font-size:20px;font-weight:700;font-family:var(--serif)}
+.stat .l{font-size:10px;opacity:.55;margin-top:2px;text-transform:uppercase;letter-spacing:.8px}
+.tab-bar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;background:rgba(245,240,232,.96);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--border);display:flex;z-index:200;padding:6px 0 max(6px,env(safe-area-inset-bottom))}
+.tab-btn{flex:1;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;padding:5px 0;color:var(--soft);font-family:var(--font);transition:color .2s}
+.tab-btn.active{color:var(--accent)}.tab-btn .ico{font-size:19px}.tab-btn .lbl{font-size:10px;font-weight:400}.tab-btn.active .lbl{font-weight:700}
+.content{padding:16px 16px 0}.page{display:none}.page.active{display:block}
+h2.sec{font-family:var(--serif);font-size:21px;font-weight:600;margin-bottom:4px}
+p.hint{font-size:12.5px;color:var(--soft);margin-bottom:16px;line-height:1.55}
+.card{background:var(--card);border-radius:var(--rs);box-shadow:var(--shadow);padding:12px 14px;margin-bottom:8px;border:1px solid var(--border);transition:box-shadow .2s}.card:hover{box-shadow:var(--shadow-h)}
+.btn{border:none;border-radius:var(--rs);padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font);transition:transform .12s;letter-spacing:.2px}.btn:active{transform:scale(.96)}
+.btn-accent{background:var(--accent);color:#fff}.btn-green{background:var(--green);color:#fff}
+.btn-ghost{background:none;border:none;color:var(--accent);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font);padding:4px 0}
+input,select,textarea{font-family:var(--font);font-size:14px;border:1.5px solid var(--border);border-radius:var(--rs);padding:10px 12px;width:100%;background:var(--card);color:var(--text);outline:none;transition:border-color .2s}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+label{font-size:11px;font-weight:600;color:var(--soft);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.6px}
+.form-row{margin-bottom:14px}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.chip{display:inline-block;font-size:10px;padding:3px 9px;border-radius:12px;margin-right:4px;margin-bottom:4px;font-weight:600;letter-spacing:.2px}
+.chip-accent{background:var(--accent-soft);color:var(--accent)}.chip-green{background:var(--green-soft);color:var(--green)}
+.market-badge{display:inline-block;border-radius:5px;padding:2px 7px;font-size:9px;font-weight:700;letter-spacing:.3px}
+.day-label{font-size:11px;font-weight:700;color:var(--soft);text-transform:uppercase;letter-spacing:1.4px;margin-bottom:6px;margin-top:16px}.day-label:first-child{margin-top:0}
+.disc-badge{background:var(--accent);color:#fff;border-radius:5px;padding:2px 7px;font-size:11px;font-weight:700}
+.stock-highlight{border-color:var(--green)!important;border-width:2px!important}
+.stock-tip{font-size:11px;color:var(--green);font-weight:600;margin-top:3px}
+.overlay{position:fixed;top:0;left:0;right:0;bottom:0;z-index:300;background:var(--bg);overflow-y:auto;padding:20px;max-width:520px;margin:0 auto}
+.empty{text-align:center;padding:40px 20px;color:var(--soft)}.empty .emoji{font-size:48px;margin-bottom:12px}.empty p{font-size:14px;line-height:1.6}
+.del-x{background:none;border:none;color:var(--soft);font-size:18px;cursor:pointer;padding:4px;line-height:1;transition:color .15s}.del-x:hover{color:#D32F2F}
+.plz-bar{display:flex;gap:8px;margin-bottom:16px;align-items:center}
+.plz-bar input{width:120px;flex-shrink:0;text-align:center;font-weight:600;font-size:16px;letter-spacing:2px}
+.plz-bar .btn{white-space:nowrap}
+.scan-status{padding:12px 14px;border-radius:var(--rs);margin-bottom:14px;font-size:13px;display:flex;align-items:center;gap:8px}
+.scan-ok{background:var(--green-soft);color:var(--green)}.scan-err{background:var(--accent-soft);color:var(--accent)}.scan-loading{background:var(--gold-soft);color:var(--gold)}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+</style>
+</head>
+<body>
+<div class="shell" id="app"></div>
+<script>
+const $=(s,p)=>(p||document).querySelector(s),$$=(s,p)=>[...(p||document).querySelectorAll(s)];
+const uid=()=>'_'+Math.random().toString(36).slice(2,9);
+const K={items:'sf2_items',recipes:'sf2_recipes',plan:'sf2_plan',plz:'sf2_plz',deals:'sf2_deals',lastScan:'sf2_lastScan'};
+function load(k,fb){try{const d=localStorage.getItem(k);return d?JSON.parse(d):fb}catch{return fb}}
+function save(k,d){localStorage.setItem(k,JSON.stringify(d))}
+
+const CATS={grundzutaten:{label:'Grundzutaten',icon:'🫙',color:'#C49A2C'},gemuese:{label:'Gemüse & Obst',icon:'🥬',color:'#5A9E3E'},protein:{label:'Protein',icon:'🫘',color:'#8E44AD'},milch:{label:'Milch & Kühl',icon:'🧊',color:'#2E86C1'},gewuerze:{label:'Gewürze & Öl',icon:'🌶️',color:'#D35400'},tiefkuehl:{label:'Tiefkühl',icon:'❄️',color:'#5DADE2'},getreide:{label:'Getreide & Brot',icon:'🌾',color:'#C49A2C'},sonstiges:{label:'Sonstiges',icon:'📦',color:'#7D7468'}};
+const DAYS=['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'];
+const MEALS=['Frühstück','Mittag','Abendessen','Snack'];
+
+const DEFAULT_ITEMS=[
+  {id:'i1',name:'Tomatenmark',cat:'grundzutaten',unit:'Tube',avgPrice:.99,shelfLife:180,essential:true,searchTerm:'Tomatenmark'},
+  {id:'i2',name:'Tofu natur',cat:'protein',unit:'Pkg',avgPrice:1.99,shelfLife:14,essential:true,searchTerm:'Tofu'},
+  {id:'i3',name:'Räuchertofu',cat:'protein',unit:'Pkg',avgPrice:2.49,shelfLife:21,essential:true,searchTerm:'Räuchertofu'},
+  {id:'i4',name:'Kichererbsen',cat:'protein',unit:'Dose',avgPrice:1.09,shelfLife:730,essential:true,searchTerm:'Kichererbsen'},
+  {id:'i5',name:'Kidneybohnen',cat:'protein',unit:'Dose',avgPrice:.99,shelfLife:730,essential:false,searchTerm:'Kidneybohnen'},
+  {id:'i6',name:'Rote Linsen',cat:'protein',unit:'500g',avgPrice:2.29,shelfLife:365,essential:true,searchTerm:'Rote Linsen'},
+  {id:'i7',name:'Spaghetti',cat:'getreide',unit:'500g',avgPrice:1.29,shelfLife:730,essential:true,searchTerm:'Spaghetti'},
+  {id:'i8',name:'Basmatireis',cat:'getreide',unit:'1kg',avgPrice:2.99,shelfLife:730,essential:true,searchTerm:'Basmatireis'},
+  {id:'i9',name:'Haferflocken',cat:'getreide',unit:'500g',avgPrice:1.19,shelfLife:365,essential:true,searchTerm:'Haferflocken'},
+  {id:'i10',name:'Dosentomaten',cat:'grundzutaten',unit:'Dose',avgPrice:.79,shelfLife:730,essential:true,searchTerm:'geschälte Tomaten'},
+  {id:'i11',name:'Kokosmilch',cat:'grundzutaten',unit:'Dose',avgPrice:1.49,shelfLife:730,essential:true,searchTerm:'Kokosmilch'},
+  {id:'i12',name:'Zwiebeln',cat:'gemuese',unit:'Netz',avgPrice:1.49,shelfLife:30,essential:true,searchTerm:'Zwiebeln'},
+  {id:'i13',name:'Knoblauch',cat:'gemuese',unit:'Knolle',avgPrice:.49,shelfLife:30,essential:true,searchTerm:'Knoblauch'},
+  {id:'i14',name:'Karotten',cat:'gemuese',unit:'1kg',avgPrice:1.29,shelfLife:21,essential:true,searchTerm:'Möhren'},
+  {id:'i15',name:'Olivenöl',cat:'gewuerze',unit:'500ml',avgPrice:5.99,shelfLife:365,essential:true,searchTerm:'Olivenöl'},
+  {id:'i16',name:'Sojasauce',cat:'gewuerze',unit:'Flasche',avgPrice:2.99,shelfLife:365,essential:true,searchTerm:'Sojasauce'},
+  {id:'i17',name:'Haferdrink',cat:'milch',unit:'1L',avgPrice:1.79,shelfLife:7,essential:true,searchTerm:'Haferdrink'},
+];
+
+const DEFAULT_RECIPES=[
+  {id:'r1',name:'Rotes Linsen-Dal',emoji:'🍛',time:30,servings:4,tags:['vegan','günstig'],ingredients:['i6','i12','i13','i10','i11','i8'],desc:'Cremiges Dal mit Kokosmilch über Basmatireis.'},
+  {id:'r2',name:'Pasta al Pomodoro',emoji:'🍝',time:20,servings:2,tags:['schnell','klassiker'],ingredients:['i7','i10','i1','i13','i15'],desc:'Einfache Tomatenpasta mit Knoblauch und Olivenöl.'},
+  {id:'r3',name:'Tofu-Gemüsepfanne',emoji:'🥘',time:25,servings:2,tags:['vegan','proteinreich'],ingredients:['i2','i12','i16'],desc:'Knuspriger Tofu mit Gemüse in Sojasauce.'},
+  {id:'r4',name:'Kichererbsen-Curry',emoji:'🫕',time:35,servings:4,tags:['vegan','meal-prep'],ingredients:['i4','i12','i13','i10','i11','i8'],desc:'Würziges Curry mit Kichererbsen und Kokosmilch.'},
+  {id:'r5',name:'Porridge',emoji:'🥣',time:5,servings:1,tags:['frühstück','schnell'],ingredients:['i9','i17'],desc:'Warmes Haferfrühstück mit Hafermilch.'},
+];
+
+const DEFAULT_PLAN=[
+  {day:'Montag',meal:'Frühstück',recipeId:'r5'},{day:'Montag',meal:'Abendessen',recipeId:'r1'},
+  {day:'Dienstag',meal:'Frühstück',recipeId:'r5'},{day:'Dienstag',meal:'Abendessen',recipeId:'r3'},
+  {day:'Mittwoch',meal:'Frühstück',recipeId:'r5'},{day:'Mittwoch',meal:'Abendessen',recipeId:'r2'},
+  {day:'Donnerstag',meal:'Abendessen',recipeId:'r4'},
+  {day:'Freitag',meal:'Frühstück',recipeId:'r5'},{day:'Freitag',meal:'Abendessen',recipeId:'r2'},
+];
+
+let state={tab:'deals',items:load(K.items,DEFAULT_ITEMS),recipes:load(K.recipes,DEFAULT_RECIPES),plan:load(K.plan,DEFAULT_PLAN),plz:load(K.plz,''),deals:load(K.deals,[]),lastScan:load(K.lastScan,null),overlay:null,scanning:false,scanProgress:''};
+
+function setState(p){Object.assign(state,p);if(p.items)save(K.items,state.items);if(p.recipes)save(K.recipes,state.recipes);if(p.plan)save(K.plan,state.plan);if(p.plz!==undefined)save(K.plz,state.plz);if(p.deals)save(K.deals,state.deals);if(p.lastScan!==undefined)save(K.lastScan,state.lastScan);render()}
+const findItem=id=>state.items.find(x=>x.id===id);
+const findRecipe=id=>state.recipes.find(x=>x.id===id);
+
+// ─── MARKTGURU API ──────────────────────────────────────────────────────────
+async function searchMarktguru(query,plz){
+  const url=`https://api.marktguru.de/api/v1/offers/search?as=web&limit=12&offset=0&q=${encodeURIComponent(query)}&zipCode=${encodeURIComponent(plz)}`;
+  try{
+    const r=await fetch(url,{headers:{'x-clientkey':'WU/RH+PMGDi+gkZer3WbMelt6zcYHSTytNB7VpTia90=','x-apikey':'8Kk+pmbf7TgJ9nVj2cXeA7P5zBGv8iuutVVMRfOfvNE='}});
+    if(!r.ok)throw new Error(`HTTP ${r.status}`);
+    const data=await r.json();
+    return(data.results||[]).map(r=>({name:r.brand?.name||'',description:r.description||'',price:r.price,oldPrice:r.oldPrice||null,market:r.advertisers?.[0]?.name||'Unbekannt',validTo:r.validTo}));
+  }catch(e){console.error('Marktguru:',e);return null}
+}
+
+async function scanAllItems(){
+  if(!state.plz||state.plz.length<5){alert('Bitte PLZ eingeben (5 Ziffern).');return}
+  state.scanning=true;state.scanProgress='Starte Scan...';render();
+  const allDeals=[];let errors=0;
+  for(let i=0;i<state.items.length;i++){
+    const item=state.items[i];
+    state.scanProgress=`${i+1}/${state.items.length}: ${item.name}...`;render();
+    const results=await searchMarktguru(item.searchTerm||item.name,state.plz);
+    if(results===null){errors++;continue}
+    results.forEach(r=>{
+      if(r.price==null)return;
+      const discount=item.avgPrice>0?Math.round((1-r.price/item.avgPrice)*100):0;
+      const isHot=discount>=20;
+      const stockUp=isHot&&item.shelfLife>60;
+      allDeals.push({id:uid(),itemId:item.id,itemName:item.name,brand:r.name,description:r.description,price:r.price,oldPrice:r.oldPrice,market:r.market,validTo:r.validTo?new Date(r.validTo).toLocaleDateString('de-DE'):null,discount,isHot,stockUp,stockUpQty:stockUp?Math.min(Math.floor(item.shelfLife/30),6):1,shelfLife:item.shelfLife,avgPrice:item.avgPrice});
+    });
+    await new Promise(ok=>setTimeout(ok,250));
+  }
+  allDeals.sort((a,b)=>b.discount-a.discount);
+  setState({deals:allDeals,lastScan:new Date().toLocaleString('de-DE'),scanning:false,scanProgress:errors>0?`Fertig (${errors} Fehler)`:`${allDeals.length} Angebote gefunden`});
+}
+
+function generateShoppingList(){
+  const needed={};
+  state.plan.forEach(e=>{const r=findRecipe(e.recipeId);if(!r)return;r.ingredients.forEach(i=>{needed[i]=(needed[i]||0)+1})});
+  return Object.entries(needed).map(([id,count])=>{
+    const item=findItem(id);
+    const deals=state.deals.filter(d=>d.itemId===id&&d.discount>0).sort((a,b)=>a.price-b.price);
+    return{itemId:id,item,count,best:deals[0]||null,deals};
+  }).filter(x=>x.item);
+}
+
+// ─── RENDER ─────────────────────────────────────────────────────────────────
+const app=document.getElementById('app');
+
+function render(){
+  const hot=state.deals.filter(d=>d.isHot),stock=state.deals.filter(d=>d.stockUp);
+  app.innerHTML=`
+    <div class="header"><h1>🦊 Sparfuchs</h1><div class="sub">Ewiger Speiseplan & Angebotsradar</div>
+      <div class="stats">
+        <div class="stat"><div class="n" style="color:#FFCA28">${hot.length}</div><div class="l">Top-Deals</div></div>
+        <div class="stat"><div class="n" style="color:#81C784">${stock.length}</div><div class="l">Vorrat!</div></div>
+        <div class="stat"><div class="n" style="color:#90CAF9">${state.recipes.length}</div><div class="l">Rezepte</div></div>
+      </div></div>
+    <div class="content">
+      <div class="page ${state.tab==='deals'?'active':''}" id="pg-deals"></div>
+      <div class="page ${state.tab==='plan'?'active':''}" id="pg-plan"></div>
+      <div class="page ${state.tab==='list'?'active':''}" id="pg-list"></div>
+      <div class="page ${state.tab==='settings'?'active':''}" id="pg-settings"></div>
+    </div>
+    <div class="tab-bar">
+      <button class="tab-btn ${state.tab==='deals'?'active':''}" data-tab="deals"><span class="ico">🏷️</span><span class="lbl">Angebote</span></button>
+      <button class="tab-btn ${state.tab==='plan'?'active':''}" data-tab="plan"><span class="ico">📅</span><span class="lbl">Plan</span></button>
+      <button class="tab-btn ${state.tab==='list'?'active':''}" data-tab="list"><span class="ico">🛒</span><span class="lbl">Einkauf</span></button>
+      <button class="tab-btn ${state.tab==='settings'?'active':''}" data-tab="settings"><span class="ico">⚙️</span><span class="lbl">Verwalten</span></button>
+    </div>`;
+  $$('.tab-btn').forEach(b=>b.addEventListener('click',()=>setState({tab:b.dataset.tab,overlay:null})));
+  ({deals:renderDeals,plan:renderPlan,list:renderList,settings:renderSettings})[state.tab]?.();
+  if(state.overlay)renderOverlay();
+}
+
+// ═══ DEALS ═══════════════════════════════════════════════════════════════════
+function renderDeals(){
+  const pg=$('#pg-deals');
+  let h=`<h2 class="sec">Angebotsradar</h2><p class="hint">Durchsucht automatisch alle Prospekte in deiner Nähe über Marktguru.</p>
+    <div class="plz-bar"><input id="plz-in" type="text" maxlength="5" placeholder="PLZ" value="${state.plz}" inputmode="numeric">
+    <button class="btn btn-accent" id="scan-btn" ${state.scanning?'disabled':''}>${state.scanning?'<span class="spinner"></span>Scannt...':'🔍 Prospekte scannen'}</button></div>`;
+  if(state.scanning) h+=`<div class="scan-status scan-loading"><span class="spinner"></span>${state.scanProgress}</div>`;
+  else if(state.lastScan) h+=`<div class="scan-status scan-ok">✅ ${state.lastScan} — ${state.deals.length} Angebote</div>`;
+  if(!state.deals.length&&!state.scanning) h+=`<div class="empty fade-up"><div class="emoji">🏷️</div><p>PLZ eingeben → <strong>Prospekte scannen</strong> drücken.</p></div>`;
+
+  // Group best per item
+  const grp={};state.deals.forEach(d=>{if(!grp[d.itemId])grp[d.itemId]=[];grp[d.itemId].push(d)});
+  const best=Object.values(grp).map(ds=>ds.sort((a,b)=>a.price-b.price)[0]).filter(d=>d.discount>0).sort((a,b)=>b.discount-a.discount);
+
+  best.forEach((d,i)=>{
+    const more=(grp[d.itemId]||[]).length-1;
+    h+=`<div class="card ${d.stockUp?'stock-highlight':''} slide-in" style="animation-delay:${i*25}ms">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:54px">
+          <span class="market-badge" style="background:var(--text);color:#fff">${d.market}</span>
+          ${d.discount>0?`<span class="disc-badge">−${d.discount}%</span>`:''}
+        </div>
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px">${d.itemName} ${d.isHot?'<span class="hot-pulse" style="font-size:14px">🔥</span>':''}</div>
+          <div style="font-size:12px;color:var(--soft);margin-top:1px">${d.brand} ${d.description}</div>
+          <div style="margin-top:3px">
+            <span style="text-decoration:line-through;color:var(--soft);font-size:12px">Ø ${(d.avgPrice||0).toFixed(2)}€</span>
+            <span style="color:var(--accent);font-weight:700;font-size:15px;margin-left:6px">${d.price.toFixed(2)}€</span>
+            ${d.oldPrice?`<span style="font-size:11px;color:var(--soft);margin-left:4px">(statt ${d.oldPrice.toFixed(2)}€)</span>`:''}
+          </div>
+          ${d.stockUp?`<div class="stock-tip">📦 Vorrat! Kaufe ${d.stockUpQty}× — hält ${d.shelfLife}d</div>`:''}
+          ${d.validTo?`<div style="font-size:11px;color:var(--soft);margin-top:2px">bis ${d.validTo}</div>`:''}
+          ${more>0?`<div style="font-size:11px;color:var(--blue);margin-top:2px">+ ${more} weitere</div>`:''}
+        </div>
+      </div></div>`;
+  });
+  pg.innerHTML=h;
+  const pi=$('#plz-in',pg);if(pi)pi.addEventListener('input',e=>{state.plz=e.target.value.replace(/\D/g,'').slice(0,5);save(K.plz,state.plz)});
+  const sb=$('#scan-btn',pg);if(sb)sb.addEventListener('click',()=>scanAllItems());
+}
+
+// ═══ PLAN ════════════════════════════════════════════════════════════════════
+function renderPlan(){
+  const pg=$('#pg-plan');
+  let h=`<h2 class="sec">Wochenplan</h2><p class="hint">Dein ewiger Speiseplan — wiederholt sich jede Woche.</p>`;
+  DAYS.forEach(day=>{
+    const ms=state.plan.filter(m=>m.day===day);
+    h+=`<div class="day-label">${day}</div>`;
+    if(!ms.length)h+=`<div class="card" style="color:var(--soft);font-size:13px;font-style:italic">—</div>`;
+    ms.forEach(m=>{const r=findRecipe(m.recipeId);if(!r)return;
+      h+=`<div class="card" style="display:flex;align-items:center;gap:12px;cursor:pointer" data-vr="${r.id}">
+        <span style="font-size:22px">${r.emoji}</span>
+        <div style="flex:1"><div style="font-size:14px;font-weight:500">${r.name}</div><div style="font-size:11px;color:var(--soft)">${m.meal} · ${r.time} Min</div></div>
+        <button class="del-x" data-dp="${day}|${m.meal}|${m.recipeId}">✕</button></div>`;
+    });
+    h+=`<button class="btn-ghost" data-am="${day}" style="margin-bottom:4px">+ Mahlzeit</button>`;
+  });
+  pg.innerHTML=h;
+  $$('[data-vr]',pg).forEach(el=>el.addEventListener('click',e=>{if(e.target.closest('.del-x'))return;setState({overlay:{type:'rd',data:el.dataset.vr}})}));
+  $$('[data-dp]',pg).forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const[d,m,r]=b.dataset.dp.split('|');const i=state.plan.findIndex(p=>p.day===d&&p.meal===m&&p.recipeId===r);if(i>=0){state.plan.splice(i,1);setState({plan:state.plan})}}));
+  $$('[data-am]',pg).forEach(b=>b.addEventListener('click',()=>setState({overlay:{type:'am',data:b.dataset.am}})));
+}
+
+// ═══ LIST ════════════════════════════════════════════════════════════════════
+function renderList(){
+  const pg=$('#pg-list'),list=generateShoppingList();
+  let h=`<h2 class="sec">Einkaufsliste</h2><p class="hint">Aus dem Wochenplan — mit besten gescannten Preisen.</p>`;
+  if(!list.length){h+=`<div class="empty fade-up"><div class="emoji">🛒</div><p>Füge Rezepte zum Plan hinzu.</p></div>`;pg.innerHTML=h;return}
+  const groups={};list.forEach(l=>{const c=l.item.cat||'sonstiges';if(!groups[c])groups[c]=[];groups[c].push(l)});
+  let tN=0,tB=0;
+  Object.entries(CATS).forEach(([k,cat])=>{if(!groups[k])return;
+    h+=`<div style="display:flex;align-items:center;gap:8px;margin-top:16px;margin-bottom:8px"><span style="font-size:16px">${cat.icon}</span><span style="font-size:12px;font-weight:700;color:${cat.color}">${cat.label}</span></div>`;
+    groups[k].forEach(l=>{const n=l.item.avgPrice*l.count,a=l.best?l.best.price*l.count:n;tN+=n;tB+=a;
+      h+=`<div class="card" style="display:flex;align-items:center;gap:10px;border-left:3px solid ${cat.color}">
+        <div style="flex:1"><div style="font-size:14px;font-weight:500">${l.item.name}${l.count>1?` <span style="color:var(--soft);font-size:12px">×${l.count}</span>`:''}</div>
+        <div style="font-size:11px;color:var(--soft)">${l.item.unit} · Ø ${l.item.avgPrice.toFixed(2)}€</div>
+        ${l.best?`<div class="stock-tip" style="color:var(--accent)">${l.best.market}: ${l.best.price.toFixed(2)}€ (−${l.best.discount}%)</div>`:''}
+        ${l.best?.stockUp?`<div class="stock-tip">📦 Mehr kaufen — hält ${l.item.shelfLife}d</div>`:''}</div>
+        <div style="text-align:right;font-size:13px;font-weight:600">${a.toFixed(2)}€</div></div>`;
+    });
+  });
+  const sv=tN-tB;
+  h+=`<div class="card" style="background:var(--green-soft);margin-top:20px;border-color:var(--green)">
+    <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:600"><span>Geschätzt</span><span>${tB.toFixed(2)}€</span></div>
+    ${sv>.01?`<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--green);margin-top:4px"><span>Gespart</span><span>−${sv.toFixed(2)}€</span></div>`:''}</div>`;
+  pg.innerHTML=h;
+}
+
+// ═══ SETTINGS ════════════════════════════════════════════════════════════════
+function renderSettings(){
+  const pg=$('#pg-settings');
+  let h=`<h2 class="sec">Verwalten</h2><p class="hint">Produkte, Rezepte und Suchbegriffe.</p>`;
+  [{icon:'📦',label:'Produkte & Suchbegriffe',count:state.items.length,a:'items'},{icon:'📖',label:'Rezepte',count:state.recipes.length,a:'recipes'},{icon:'🗑️',label:'Daten zurücksetzen',a:'reset'}].forEach(s=>{
+    h+=`<div class="card" style="display:flex;align-items:center;gap:12px;cursor:pointer" data-s="${s.a}">
+      <span style="font-size:24px">${s.icon}</span><div style="flex:1"><div style="font-size:15px;font-weight:500">${s.label}</div>
+      ${s.count?`<div style="font-size:12px;color:var(--soft)">${s.count}</div>`:''}</div><span style="color:var(--soft)">→</span></div>`;
+  });
+  pg.innerHTML=h;
+  $$('[data-s]',pg).forEach(el=>el.addEventListener('click',()=>{
+    if(el.dataset.s==='reset'){if(confirm('Alle Daten zurücksetzen?')){Object.values(K).forEach(k=>localStorage.removeItem(k));location.reload()}}
+    else setState({overlay:{type:el.dataset.s}});
+  }));
+}
+
+// ═══ OVERLAYS ════════════════════════════════════════════════════════════════
+function renderOverlay(){
+  let div=document.getElementById('overlay');
+  if(!div){div=document.createElement('div');div.className='overlay fade-up';div.id='overlay';document.body.appendChild(div)}
+  div.style.display='block';
+  const o=state.overlay;
+  if(o.type==='rd')renderRD(div,o.data);
+  else if(o.type==='am')renderAM(div,o.data);
+  else if(o.type==='items')renderMI(div);
+  else if(o.type==='recipes')renderMR(div);
+  else if(o.type==='add-item')renderAI(div);
+  else if(o.type==='add-recipe')renderAR(div);
+  else if(o.type==='edit-recipe')renderER(div,o.data);
+  else closeOv();
+}
+function closeOv(){const d=document.getElementById('overlay');if(d)d.style.display='none';state.overlay=null}
+function ovH(t){return`<button class="btn-ghost" id="ovb">← Zurück</button><h2 class="sec" style="margin-top:8px;margin-bottom:16px">${t}</h2>`}
+function bB(d){$('#ovb',d)?.addEventListener('click',closeOv)}
+
+function renderRD(div,rid){
+  const r=findRecipe(rid);if(!r){closeOv();return}
+  let h=ovH('');
+  h+=`<div style="font-size:48px;margin-bottom:8px">${r.emoji}</div>
+    <h2 style="font-family:var(--serif);font-size:24px;margin-bottom:4px">${r.name}</h2>
+    <div style="font-size:13px;color:var(--soft);margin-bottom:10px">${r.time} Min · ${r.servings} Portionen</div>
+    <div style="margin-bottom:14px">${r.tags.map(t=>`<span class="chip chip-accent">${t}</span>`).join('')}</div>
+    <p style="font-size:14px;color:var(--soft);line-height:1.6;margin-bottom:20px">${r.desc}</p>
+    <h3 style="font-family:var(--serif);font-size:17px;margin-bottom:10px">Zutaten</h3>`;
+  r.ingredients.forEach(iid=>{const item=findItem(iid);if(!item)return;
+    const ds=state.deals.filter(d=>d.itemId===iid&&d.discount>0).sort((a,b)=>a.price-b.price);const b=ds[0];
+    h+=`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="flex:1"><span style="font-size:14px">${item.name}</span> <span style="font-size:12px;color:var(--soft)">${item.unit}</span></div>
+      ${b?`<span style="font-size:12px;color:var(--green);font-weight:600">${b.price.toFixed(2)}€ ${b.market}</span>`:`<span style="font-size:12px;color:var(--soft)">Ø ${item.avgPrice.toFixed(2)}€</span>`}</div>`;
+  });
+  div.innerHTML=h;bB(div);
+}
+
+function renderAM(div,day){
+  let h=ovH(`${day}`);
+  h+=`<div class="form-row"><label>Mahlzeit</label><select id="am-m">${MEALS.map(m=>`<option>${m}</option>`).join('')}</select></div>
+    <div class="form-row"><label>Rezept</label><select id="am-r">${state.recipes.map(r=>`<option value="${r.id}">${r.emoji} ${r.name}</option>`).join('')}</select></div>
+    <button class="btn btn-accent" id="am-s" style="width:100%">Hinzufügen</button>`;
+  div.innerHTML=h;bB(div);
+  $('#am-s',div).addEventListener('click',()=>{state.plan.push({day,meal:$('#am-m',div).value,recipeId:$('#am-r',div).value});setState({plan:state.plan,overlay:null})});
+}
+
+function renderMI(div){
+  let h=ovH('Produkte & Suchbegriffe');
+  h+=`<p class="hint" style="margin-top:-8px">Der <strong>Suchbegriff</strong> wird für Marktguru verwendet. Anpassen wenn nötig.</p>`;
+  Object.entries(CATS).forEach(([k,cat])=>{const ci=state.items.filter(x=>x.cat===k);if(!ci.length)return;
+    h+=`<div style="display:flex;align-items:center;gap:6px;margin-top:14px;margin-bottom:6px"><span>${cat.icon}</span><span style="font-size:12px;font-weight:700;color:${cat.color}">${cat.label}</span></div>`;
+    ci.forEach(item=>{h+=`<div class="card" style="padding:10px 12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><div style="flex:1;font-size:14px;font-weight:500">${item.name}</div><button class="del-x" data-di="${item.id}">✕</button></div>
+      <div style="display:flex;gap:8px;align-items:center"><label style="margin:0;white-space:nowrap;font-size:10px">Suche:</label><input data-si="${item.id}" value="${item.searchTerm||item.name}" style="font-size:12px;padding:6px 8px"></div></div>`;});
+  });
+  h+=`<button class="btn btn-accent" style="width:100%;margin-top:14px" id="ai-btn">+ Produkt</button>`;
+  h+=`<button class="btn btn-green" style="width:100%;margin-top:8px" id="ss-btn">💾 Suchbegriffe speichern</button>`;
+  div.innerHTML=h;bB(div);
+  $$('[data-di]',div).forEach(b=>b.addEventListener('click',()=>{if(!confirm('Entfernen?'))return;state.items=state.items.filter(i=>i.id!==b.dataset.di);setState({items:state.items});renderMI(div)}));
+  $('#ai-btn',div).addEventListener('click',()=>setState({overlay:{type:'add-item'}}));
+  $('#ss-btn',div).addEventListener('click',()=>{$$('[data-si]',div).forEach(inp=>{const it=findItem(inp.dataset.si);if(it)it.searchTerm=inp.value.trim()||it.name});setState({items:state.items});alert('Gespeichert!')});
+}
+
+function renderAI(div){
+  let h=ovH('Neues Produkt');
+  h+=`<div class="form-row"><label>Name</label><input id="n-n" placeholder="z.B. Sojajoghurt"></div>
+    <div class="form-row"><label>Suchbegriff (Marktguru)</label><input id="n-s" placeholder="z.B. Sojajoghurt Alpro"></div>
+    <div class="form-grid"><div class="form-row"><label>Einheit</label><input id="n-u" placeholder="500g"></div><div class="form-row"><label>Ø Preis €</label><input id="n-p" type="number" step="0.01" placeholder="1.99"></div></div>
+    <div class="form-grid"><div class="form-row"><label>Kategorie</label><select id="n-c">${Object.entries(CATS).map(([k,c])=>`<option value="${k}">${c.icon} ${c.label}</option>`).join('')}</select></div>
+    <div class="form-row"><label>Haltbarkeit (Tage)</label><input id="n-sl" type="number" placeholder="365"></div></div>
+    <div class="form-row" style="display:flex;align-items:center;gap:10px"><input type="checkbox" id="n-e" style="width:auto"><label for="n-e" style="margin:0;font-size:14px">Muss-Produkt</label></div>
+    <button class="btn btn-accent" style="width:100%;margin-top:8px" id="n-sv">Speichern</button>`;
+  div.innerHTML=h;bB(div);
+  $('#n-sv',div).addEventListener('click',()=>{const name=$('#n-n',div).value.trim();if(!name)return;
+    state.items.push({id:uid(),name,cat:$('#n-c',div).value,unit:$('#n-u',div).value.trim()||'Stk',avgPrice:parseFloat($('#n-p',div).value)||0,shelfLife:parseInt($('#n-sl',div).value)||7,essential:$('#n-e',div).checked,searchTerm:$('#n-s',div).value.trim()||name});
+    setState({items:state.items,overlay:{type:'items'}})});
+}
+
+function renderMR(div){
+  let h=ovH('Rezepte');
+  state.recipes.forEach(r=>{h+=`<div class="card" style="display:flex;align-items:center;gap:12px">
+    <span style="font-size:24px">${r.emoji}</span><div style="flex:1;cursor:pointer" data-er="${r.id}"><div style="font-size:14px;font-weight:500">${r.name}</div><div style="font-size:11px;color:var(--soft)">${r.time} Min · ${r.ingredients.length} Zutaten</div></div>
+    <button class="del-x" data-dr="${r.id}">✕</button></div>`});
+  h+=`<button class="btn btn-accent" style="width:100%;margin-top:14px" id="ar-btn">+ Rezept</button>`;
+  div.innerHTML=h;bB(div);
+  $$('[data-dr]',div).forEach(b=>b.addEventListener('click',()=>{if(!confirm('Entfernen?'))return;state.recipes=state.recipes.filter(r=>r.id!==b.dataset.dr);state.plan=state.plan.filter(p=>p.recipeId!==b.dataset.dr);setState({recipes:state.recipes,plan:state.plan});renderMR(div)}));
+  $$('[data-er]',div).forEach(el=>el.addEventListener('click',()=>setState({overlay:{type:'edit-recipe',data:el.dataset.er}})));
+  $('#ar-btn',div).addEventListener('click',()=>setState({overlay:{type:'add-recipe'}}));
+}
+
+function recipeForm(div,recipe){
+  const isE=!!recipe,r=recipe||{name:'',emoji:'🍽️',time:30,servings:2,tags:[],ingredients:[],desc:''};
+  const emos=['🍛','🍝','🥘','🫕','🥣','🥗','🌶️','🥕','🍲','🥪','🧆','🍜','🥙','🍃','🫘','🍽️'];
+  let h=ovH(isE?'Rezept bearbeiten':'Neues Rezept');
+  h+=`<div class="form-row"><label>Emoji</label><div style="display:flex;gap:6px;flex-wrap:wrap" id="re">${emos.map(e=>`<span data-e="${e}" style="font-size:28px;cursor:pointer;padding:4px;border-radius:8px;border:2px solid ${e===r.emoji?'var(--accent)':'transparent'}">${e}</span>`).join('')}</div></div>
+    <div class="form-row"><label>Name</label><input id="rn" value="${r.name}"></div>
+    <div class="form-grid"><div class="form-row"><label>Zeit (Min)</label><input id="rt" type="number" value="${r.time}"></div><div class="form-row"><label>Portionen</label><input id="rs" type="number" value="${r.servings}"></div></div>
+    <div class="form-row"><label>Beschreibung</label><textarea id="rd" rows="2">${r.desc}</textarea></div>
+    <div class="form-row"><label>Tags</label><input id="rg" value="${r.tags.join(', ')}"></div>
+    <div class="form-row"><label>Zutaten</label><div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--rs);padding:8px" id="ri">
+      ${state.items.map(i=>`<label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;cursor:pointer"><input type="checkbox" value="${i.id}" ${r.ingredients.includes(i.id)?'checked':''} style="width:auto">${i.name}</label>`).join('')}</div></div>
+    <button class="btn btn-accent" style="width:100%;margin-top:8px" id="rsv">${isE?'Aktualisieren':'Speichern'}</button>`;
+  div.innerHTML=h;bB(div);
+  let se=r.emoji;
+  $$('[data-e]',div).forEach(el=>el.addEventListener('click',()=>{se=el.dataset.e;$$('[data-e]',div).forEach(x=>x.style.border='2px solid transparent');el.style.border='2px solid var(--accent)'}));
+  return{ge:()=>se};
+}
+
+function renderAR(div){const f=recipeForm(div,null);$('#rsv',div).addEventListener('click',()=>{const n=$('#rn',div).value.trim();if(!n)return;
+  state.recipes.push({id:uid(),name:n,emoji:f.ge(),time:parseInt($('#rt',div).value)||30,servings:parseInt($('#rs',div).value)||2,tags:$('#rg',div).value.split(',').map(t=>t.trim()).filter(Boolean),ingredients:$$('#ri input:checked',div).map(x=>x.value),desc:$('#rd',div).value.trim()});
+  setState({recipes:state.recipes,overlay:{type:'recipes'}})})}
+
+function renderER(div,rid){const rec=findRecipe(rid);if(!rec){closeOv();return}const f=recipeForm(div,rec);
+  $('#rsv',div).addEventListener('click',()=>{const n=$('#rn',div).value.trim();if(!n)return;const i=state.recipes.findIndex(r=>r.id===rid);
+    if(i>=0)state.recipes[i]={...state.recipes[i],name:n,emoji:f.ge(),time:parseInt($('#rt',div).value)||30,servings:parseInt($('#rs',div).value)||2,tags:$('#rg',div).value.split(',').map(t=>t.trim()).filter(Boolean),ingredients:$$('#ri input:checked',div).map(x=>x.value),desc:$('#rd',div).value.trim()};
+    setState({recipes:state.recipes,overlay:{type:'recipes'}})})}
+
+render();
+</script>
+</body>
+</html>
