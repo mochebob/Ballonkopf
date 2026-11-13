@@ -54,15 +54,24 @@
             pickleLength: 1.35,     // Gurkenlänge
             followStiffness: 220,   // wie straff die Gurke am Cursor hängt
             followDamping: 0.75,    // 1 = keine Überschwinger, kleiner = federnder
-            headSoftness: 380,      // Widerstand des Kopfes beim Eindrücken (weich)
-            headHardness: 4000,     // harter Widerstand ab maxDent
-            maxDent: 0.35,          // so tief darf die Gurke weich eindrücken
-            wobbleGain: 0.55,       // wie stark der Kopf beim Reiben/Stoßen wabbelt
-            wobbleStiffness: 260,   // Wackelpudding-Frequenz (höher = schneller)
-            wobbleDamping: 4.5,     // wie schnell das Wabbeln abklingt
-            wobbleRadius: 0.95,     // Größe der wabbelnden Zone
-            squashGain: 0.10,       // Stauchen beim Aufprall
-            headSpring: 45,         // wie stark der Kopf zur Mitte zurückfedert
+
+            // Punchingball (Kopf kippt um den festen Punkt unten)
+            headInertia: 18,        // "Gewicht" des Kopfes – höher = schwerer zu schubsen
+            headStiffness: 60,      // Rückstellfeder – höher = schneller zurück
+            headDamping: 1.4,       // wie schnell das Schaukeln abklingt
+            maxTilt: 0.6,           // maximales Kippen (Radiant)
+            neckBend: 0.24,         // Anteil der Höhe, der sich biegt (der Rest kippt starr)
+            bounce: 0.35,           // wie stark die Gurke abprallt (0–1)
+
+            // Wackelpudding obendrauf
+            whipGain: 0.035,        // Nachschwingen der oberen Kopfhälfte
+            whipStiffness: 420,
+            whipDamping: 5,
+            wobbleGain: 0.10,       // lokales Wabbeln an der Trefferstelle
+            wobbleStiffness: 300,
+            wobbleDamping: 5,
+            wobbleRadius: 1.0,
+            squashGain: 0.012,      // Stauchen bei Treffern von oben/frontal
         };
 
         // ================== SZENE ==================
@@ -91,72 +100,87 @@
             }
         );
 
-        // ================== JELLY-SHADER (läuft auf der GPU) ==================
+        // ================== VERFORMUNGS-SHADER (GPU) ==================
         const NWOB = 6;
-        const jelly = {
-            uSegA:    { value: new THREE.Vector3(100, 100, 100) },
-            uSegB:    { value: new THREE.Vector3(100, 100, 101) },
-            uCapR:    { value: 0.2 },
-            uWobC:    { value: Array.from({ length: NWOB }, () => new THREE.Vector3()) },
-            uWobD:    { value: Array.from({ length: NWOB }, () => new THREE.Vector3()) },
-            uWobS2:   { value: CFG.wobbleRadius * CFG.wobbleRadius },
-            uCenter:  { value: new THREE.Vector3() },
-            uSqDir:   { value: new THREE.Vector3(0, 0, 1) },
-            uSq:      { value: 0 },
+        const U = {
+            uAnchor: { value: new THREE.Vector3(0, -2.3, 0) }, // fester Punkt unten
+            uH:      { value: 4.6 },
+            uBend:   { value: CFG.neckBend },
+            uTilt:   { value: new THREE.Vector3() },  // Kipp-Rotation (Achse·Winkel)
+            uWhip:   { value: new THREE.Vector3() },  // Nachschwingen oben
+            uWobC:   { value: Array.from({ length: NWOB }, () => new THREE.Vector3()) },
+            uWobD:   { value: Array.from({ length: NWOB }, () => new THREE.Vector3()) },
+            uWobS2:  { value: CFG.wobbleRadius ** 2 },
+            uSqDir:  { value: new THREE.Vector3(0, 1, 0) },
+            uSq:     { value: 0 },
+            uSegA:   { value: new THREE.Vector3(100, 100, 100) },
+            uSegB:   { value: new THREE.Vector3(100, 100, 101) },
+            uCapR:   { value: 0.2 },
         };
 
-        const JELLY_GLSL = /* glsl */`
-            uniform vec3 uSegA, uSegB;
-            uniform float uCapR;
+        const GLSL = /* glsl */`
+            uniform vec3 uAnchor, uTilt, uWhip, uSqDir, uSegA, uSegB;
+            uniform float uH, uBend, uSq, uWobS2, uCapR;
             uniform vec3 uWobC[${NWOB}];
             uniform vec3 uWobD[${NWOB}];
-            uniform float uWobS2;
-            uniform vec3 uCenter, uSqDir;
-            uniform float uSq;
 
-            vec3 jellyPos(vec3 p) {
-                // 1) Stauchen/Strecken des ganzen Kopfes (volumenerhaltend-ish)
-                vec3 r = p - uCenter;
+            vec3 rotAA(vec3 v, vec3 aa) {          // Rodrigues: Rotation um Achse·Winkel
+                float a = length(aa);
+                if (a < 1e-6) return v;
+                vec3 k = aa / a;
+                return v * cos(a) + cross(k, v) * sin(a) + k * dot(k, v) * (1.0 - cos(a));
+            }
+
+            vec3 deform(vec3 p) {
+                vec3 r = p - uAnchor;
+                float h = clamp(r.y / uH, 0.0, 1.0);   // 0 = unten (fest), 1 = Scheitel
+                float fix = smoothstep(0.0, 0.18, h);
+
+                // Stauchen (Boden bleibt stehen)
                 float a = dot(r, uSqDir);
                 vec3 perp = r - uSqDir * a;
-                p = uCenter + uSqDir * a * (1.0 - uSq) + perp * (1.0 + 0.5 * uSq);
+                r = mix(r, uSqDir * a * (1.0 - uSq) + perp * (1.0 + 0.5 * uSq), fix);
 
-                // 2) lokale Wabbel-Federn
+                // lokales Wabbeln an Trefferstellen
                 vec3 o = vec3(0.0);
                 for (int i = 0; i < ${NWOB}; i++) {
-                    vec3 d = p - uWobC[i];
+                    vec3 d = (uAnchor + r) - uWobC[i];
                     o += uWobD[i] * exp(-dot(d, d) / uWobS2);
                 }
-                p += o;
+                r += o * fix;
 
-                // 3) Delle: Oberfläche weicht der Gurke (Kapsel) aus
+                // Punchingball: Hals biegt sich, Kopf kippt; oben schwingt's nach
+                float s = smoothstep(0.0, uBend, h);
+                r = rotAA(r, uTilt * s + uWhip * h * h * h);
+                vec3 q = uAnchor + r;
+
+                // kleine Ausweich-Delle (nur damit Nase & Co nicht durch die Gurke stechen)
                 vec3 ab = uSegB - uSegA;
-                float t = clamp(dot(p - uSegA, ab) / max(dot(ab, ab), 1e-6), 0.0, 1.0);
-                vec3 dv = p - (uSegA + ab * t);
+                float t = clamp(dot(q - uSegA, ab) / max(dot(ab, ab), 1e-6), 0.0, 1.0);
+                vec3 dv = q - (uSegA + ab * t);
                 float dl = length(dv);
-                float k = max(0.0, 1.0 - dl / (1.7 * uCapR));
-                vec3 dir = dl > 1e-4 ? dv / dl : vec3(0.0, 0.0, 1.0);
-                p += dir * uCapR * k * k;
-                return p;
+                float k = max(0.0, 1.0 - dl / (1.5 * uCapR));
+                q += (dl > 1e-4 ? dv / dl : vec3(0.0, 0.0, 1.0)) * uCapR * k * k;
+                return q;
             }
         `;
 
         function makeJelly(material) {
             material.onBeforeCompile = (shader) => {
-                Object.assign(shader.uniforms, jelly);
+                Object.assign(shader.uniforms, U);
                 shader.vertexShader = shader.vertexShader
-                    .replace('#include <common>', '#include <common>\n' + JELLY_GLSL)
+                    .replace('#include <common>', '#include <common>\n' + GLSL)
                     .replace('#include <project_vertex>', /* glsl */`
                         vec3 jP = (modelMatrix * vec4(transformed, 1.0)).xyz;
                         vec3 jN = normalize(mat3(modelMatrix) * objectNormal);
                         vec3 jT = normalize(cross(jN, abs(jN.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));
                         vec3 jB = cross(jN, jT);
                         const float jE = 0.02;
-                        vec3 j0 = jellyPos(jP);
-                        vec3 j1 = jellyPos(jP + jT * jE);
-                        vec3 j2 = jellyPos(jP + jB * jE);
+                        vec3 j0 = deform(jP);
+                        vec3 j1 = deform(jP + jT * jE);
+                        vec3 j2 = deform(jP + jB * jE);
                         vec3 jNN = normalize(cross(j1 - j0, j2 - j0));
-                        if (dot(jNN, jN) < 0.0) jNN = -jNN;
+                        if (dot(jNN, rotAA(jN, uTilt)) < 0.0) jNN = -jNN;
                         #ifndef FLAT_SHADED
                             vNormal = normalize((viewMatrix * vec4(jNN, 0.0)).xyz);
                         #endif
@@ -164,15 +188,17 @@
                         gl_Position = projectionMatrix * mvPosition;
                     `);
             };
-            material.customProgramCacheKey = () => 'jelly';
+            material.customProgramCacheKey = () => 'jelly2';
             material.needsUpdate = true;
         }
 
         // ================== KOPF ==================
         const head = {
-            root: new THREE.Group(),   // federt zur Mitte zurück
-            vel: new THREE.Vector3(),
-            axes: new THREE.Vector3(1, 1.5, 1.2), // Ellipsoid-Halbachsen für Kollision
+            root: new THREE.Group(),
+            center: new THREE.Vector3(),          // Ellipsoid-Mitte (Ruhelage)
+            axes: new THREE.Vector3(1, 1.5, 1.2), // Ellipsoid-Halbachsen
+            tilt: U.uTilt.value, tiltVel: new THREE.Vector3(),
+            whip: U.uWhip.value, whipVel: new THREE.Vector3(),
             ready: false,
         };
         scene.add(head.root);
@@ -185,13 +211,16 @@
             model.scale.setScalar(s);
             model.position.copy(center).multiplyScalar(-s);
             head.root.add(model);
-            head.axes.copy(size).multiplyScalar(0.5 * s * 0.9);
+
+            head.axes.copy(size).multiplyScalar(0.5 * s * 0.92);
+            head.center.set(0, 0, 0);
+            U.uH.value = CFG.headHeight;
+            U.uAnchor.value.set(0, -CFG.headHeight / 2, 0);
 
             model.traverse((c) => {
                 if (c.isMesh) {
-                    c.frustumCulled = false; // Verformung kann über die BoundingBox hinaus
-                    const mats = Array.isArray(c.material) ? c.material : [c.material];
-                    mats.forEach(makeJelly);
+                    c.frustumCulled = false;
+                    (Array.isArray(c.material) ? c.material : [c.material]).forEach(makeJelly);
                 }
             });
             head.ready = true;
@@ -214,11 +243,11 @@
         // ================== GURKE ==================
         const pickle = {
             root: new THREE.Group(),
-            pos: new THREE.Vector3(3, 0, 1),
+            pos: new THREE.Vector3(3.5, 0, 1),
             vel: new THREE.Vector3(),
-            axis: new THREE.Vector3(1, 0, 0),   // Längsachse in Weltkoordinaten
-            radius: 0.19,
-            half: 0.36,                          // halbe Länge des Kapsel-Segments
+            axis: new THREE.Vector3(1, 0, 0),
+            radius: 0.22,
+            half: 0.45,
         };
         scene.add(pickle.root);
 
@@ -226,7 +255,6 @@
             const box = new THREE.Box3().setFromObject(model);
             const size = box.getSize(new THREE.Vector3());
             const center = box.getCenter(new THREE.Vector3());
-            // längste Achse auf X drehen
             const inner = new THREE.Group();
             inner.add(model);
             model.position.sub(center);
@@ -243,156 +271,202 @@
         new GLTFLoader().load('gurke.glb',
             (gltf) => setupPickle(gltf.scene),
             undefined,
-            () => {
-                const m = new THREE.Mesh(
-                    new THREE.CapsuleGeometry(0.19, 0.7, 8, 16).rotateZ(Math.PI / 2),
-                    new THREE.MeshStandardMaterial({ color: 0x3f8f2f, roughness: 0.6 })
-                );
-                setupPickle(m);
-            }
+            () => setupPickle(new THREE.Mesh(
+                new THREE.CapsuleGeometry(0.22, 0.9, 8, 16).rotateZ(Math.PI / 2),
+                new THREE.MeshStandardMaterial({ color: 0x3f8f2f, roughness: 0.6 })
+            ))
         );
 
         // ================== CURSOR ==================
         const raycaster = new THREE.Raycaster();
-        const ndc = new THREE.Vector2(0.6, 0);
-        let planeZ = 0.6; // Mausrad verschiebt die Gurke nach vorne/hinten
-        const target = new THREE.Vector3(3, 0, planeZ);
+        const ndc = new THREE.Vector2(0.7, 0);
+        let planeZ = 0.8; // Mausrad: Gurke nach vorne/hinten
+        const target = new THREE.Vector3(3.5, 0, planeZ);
+        const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
 
         function updateTarget() {
             raycaster.setFromCamera(ndc, camera);
-            const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -planeZ);
+            plane.constant = -planeZ;
             raycaster.ray.intersectPlane(plane, target);
         }
-        addEventListener('pointermove', (e) => {
-            ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
-        });
-        addEventListener('pointerdown', (e) => {
-            ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
-        });
+        const setNdc = (e) => ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+        addEventListener('pointermove', setNdc);
+        addEventListener('pointerdown', setNdc);
         addEventListener('wheel', (e) => {
             planeZ = THREE.MathUtils.clamp(planeZ - e.deltaY * 0.002, -1.5, 2.5);
         }, { passive: true });
 
+        // ================== HILFSFUNKTIONEN ==================
+        const bendS = (h) => { const x = THREE.MathUtils.clamp(h / CFG.neckBend, 0, 1); return x * x * (3 - 2 * x); };
+        const quat = new THREE.Quaternion();
+        const aaTmp = new THREE.Vector3();
+
+        function rotateAA(v, aa, sign = 1) {
+            const a = aa.length();
+            if (a < 1e-6) return v;
+            quat.setFromAxisAngle(aaTmp.copy(aa).divideScalar(a), a * sign);
+            return v.applyQuaternion(quat);
+        }
+        // Rotationsvektor (Achse·Winkel), der an Höhe h wirkt
+        function angleAt(h, out) {
+            return out.copy(head.tilt).multiplyScalar(bendS(h)).addScaledVector(head.whip, h * h * h);
+        }
+        const heightOf = (p) => THREE.MathUtils.clamp((p.y - U.uAnchor.value.y) / CFG.headHeight, 0, 1);
+
         // ================== JELLY-FEDERN ==================
         const wob = Array.from({ length: NWOB }, (_, i) => ({
-            c: jelly.uWobC.value[i], d: jelly.uWobD.value[i], v: new THREE.Vector3(),
+            c: U.uWobC.value[i], d: U.uWobD.value[i], v: new THREE.Vector3(),
         }));
         const squash = { x: 0, v: 0 };
 
-        function addWobble(point, impulse) {
+        function addWobble(restPoint, impulse) {
             let best = null, bestDist = Infinity;
             for (const w of wob) {
-                const dist = w.c.distanceTo(point);
+                const dist = w.c.distanceTo(restPoint);
                 if (dist < bestDist) { bestDist = dist; best = w; }
             }
             if (bestDist > CFG.wobbleRadius * 0.6) {
-                // ruhigste Feder recyceln
                 best = wob.reduce((a, b) => (a.d.lengthSq() + a.v.lengthSq() * 0.01 < b.d.lengthSq() + b.v.lengthSq() * 0.01 ? a : b));
-                if (best.d.lengthSq() < 1e-4) best.c.copy(point);
-            }
-            best.c.lerp(point, 0.15);
+                best.c.copy(restPoint);
+            } else best.c.lerp(restPoint, 0.2);
             best.v.add(impulse);
         }
 
-        function stepJelly(dt) {
-            for (const w of wob) {
-                // a = -k·d - c·v
-                w.v.addScaledVector(w.d, -CFG.wobbleStiffness * dt);
-                w.v.multiplyScalar(Math.max(0, 1 - CFG.wobbleDamping * dt));
-                w.d.addScaledVector(w.v, dt);
-                if (w.d.length() > 0.45) w.d.setLength(0.45);
+        // ================== PHYSIK ==================
+        const v1 = new THREE.Vector3(), v2 = new THREE.Vector3(), v3 = new THREE.Vector3();
+        const rest = new THREE.Vector3(), nW = new THREE.Vector3(), arm = new THREE.Vector3();
+        const ang = new THREE.Vector3(), omega = new THREE.Vector3(), surfV = new THREE.Vector3();
+        const best = { pen: 0, n: new THREE.Vector3(), p: new THREE.Vector3(), rest: new THREE.Vector3(), h: 0 };
+        const tiltPrevVel = new THREE.Vector3();
+        const desiredAxis = new THREE.Vector3(1, 0, 0);
+        const SAMPLES = 9;
+
+        // tiefster Eindring-Punkt der Gurke in den (verbogenen) Kopf
+        function findContact() {
+            best.pen = 0;
+            const anchor = U.uAnchor.value;
+            for (let i = 0; i < SAMPLES; i++) {
+                const f = (i / (SAMPLES - 1)) * 2 - 1;
+                const p = v1.copy(pickle.pos).addScaledVector(pickle.axis, f * pickle.half);
+
+                // Weltpunkt -> Ruhelage des Kopfes (Biegung rückgängig machen, 2 Iterationen)
+                let h = heightOf(p);
+                for (let it = 0; it < 2; it++) {
+                    rest.copy(p).sub(anchor);
+                    rotateAA(rest, angleAt(h, ang), -1);
+                    rest.add(anchor);
+                    h = heightOf(rest);
+                }
+                // Ellipsoid-Test in Ruhelage
+                const rel = v2.copy(rest).sub(head.center);
+                const q = v3.set(rel.x / head.axes.x, rel.y / head.axes.y, rel.z / head.axes.z);
+                const s = Math.max(q.length(), 1e-4);
+                const dist = (s - 1) * rel.length() / s;
+                const pen = pickle.radius - dist;
+                if (pen > best.pen) {
+                    best.pen = pen;
+                    best.h = h;
+                    best.rest.copy(rest);
+                    // Normale in Ruhelage -> Welt
+                    best.n.set(q.x / head.axes.x, q.y / head.axes.y, q.z / head.axes.z).normalize();
+                    rotateAA(best.n, angleAt(h, ang), 1);
+                    best.p.copy(p).addScaledVector(best.n, -pickle.radius); // Kontaktpunkt
+                }
             }
-            squash.v += -CFG.wobbleStiffness * 0.8 * squash.x * dt;
-            squash.v *= Math.max(0, 1 - CFG.wobbleDamping * dt);
-            squash.x = THREE.MathUtils.clamp(squash.x + squash.v * dt, -0.25, 0.25);
-            jelly.uSq.value = squash.x;
+            return best.pen > 0;
         }
 
-        // ================== PHYSIK ==================
-        const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), q = new THREE.Vector3();
-        const force = new THREE.Vector3(), contactPt = new THREE.Vector3(), contactN = new THREE.Vector3();
-        const desiredAxis = new THREE.Vector3(1, 0, 0);
-        let wasTouching = false;
-        const SAMPLES = 7;
-
         function step(dt, t) {
-            const hc = head.root.position;
+            const anchor = U.uAnchor.value;
 
             // --- Gurke folgt dem Cursor (gedämpfte Feder) ---
             const k = CFG.followStiffness;
             const c = 2 * Math.sqrt(k) * CFG.followDamping;
-            force.copy(target).sub(pickle.pos).multiplyScalar(k).addScaledVector(pickle.vel, -c);
+            v1.copy(target).sub(pickle.pos).multiplyScalar(k).addScaledVector(pickle.vel, -c);
+            pickle.vel.addScaledVector(v1, dt);
+            if (pickle.vel.length() > 30) pickle.vel.setLength(30);
+            pickle.pos.addScaledVector(pickle.vel, dt);
 
-            // --- Kollision Gurke (Kapsel) ↔ Kopf (Ellipsoid) ---
-            let touching = false, penSum = 0;
-            contactPt.set(0, 0, 0); contactN.set(0, 0, 0);
-            const headForce = tmp2.set(0, 0, 0);
+            // --- Kollision: Gurke darf NICHT in den Kopf ---
             if (head.ready) {
-                for (let i = 0; i < SAMPLES; i++) {
-                    const f = (i / (SAMPLES - 1)) * 2 - 1;
-                    const p = tmp.copy(pickle.pos).addScaledVector(pickle.axis, f * pickle.half);
-                    const rel = p.sub(hc);
-                    q.set(rel.x / head.axes.x, rel.y / head.axes.y, rel.z / head.axes.z);
-                    const s = Math.max(q.length(), 1e-4);
-                    const n = q.set(q.x / head.axes.x, q.y / head.axes.y, q.z / head.axes.z).normalize();
-                    const dist = (s - 1) * rel.length() / s;      // ≈ Abstand zur Kopfoberfläche
-                    const pen = pickle.radius - dist;
-                    if (pen > 0) {
-                        touching = true;
-                        const mag = CFG.headSoftness * pen + CFG.headHardness * Math.max(0, pen - CFG.maxDent);
-                        force.addScaledVector(n, mag / SAMPLES * 2.2);
-                        headForce.addScaledVector(n, -mag / SAMPLES);
-                        // Kontaktpunkt auf der Oberfläche
-                        contactPt.addScaledVector(rel.add(hc).addScaledVector(n, -(pickle.radius - pen)), pen);
-                        contactN.addScaledVector(n, pen);
-                        penSum += pen;
+                for (let iter = 0; iter < 3 && findContact(); iter++) {
+                    const n = best.n, h = best.h;
+                    // 1) rausschieben
+                    pickle.pos.addScaledVector(n, best.pen);
+
+                    // 2) Impuls zwischen Gurke (Masse 1) und kippendem Kopf
+                    arm.copy(best.p).sub(anchor);
+                    const sH = bendS(h);
+                    omega.copy(head.tiltVel).multiplyScalar(sH);
+                    surfV.crossVectors(omega, arm);
+                    const vRel = v2.copy(pickle.vel).sub(surfV);
+                    const vn = vRel.dot(n);
+                    if (vn < 0) {
+                        const rxn = v3.crossVectors(arm, n);
+                        const invHead = sH * sH * rxn.lengthSq() / CFG.headInertia;
+                        const j = -(1 + CFG.bounce) * vn / (1 + invHead);
+                        pickle.vel.addScaledVector(n, j);
+                        // Drehimpuls auf den Kopf: tiltVel -= sH * (arm × n·j) / I
+                        head.tiltVel.addScaledVector(rxn, -j * sH / CFG.headInertia);
+
+                        // Reibung: Streifen nimmt den Kopf ein bisschen mit
+                        const vt = vRel.addScaledVector(n, -vn);
+                        const jt = vt.multiplyScalar(-0.25 / (1 + invHead));
+                        pickle.vel.add(jt);
+                        head.tiltVel.addScaledVector(v3.crossVectors(arm, jt), -sH / CFG.headInertia);
+
+                        // Wackelpudding an der Trefferstelle
+                        if (-vn > 0.3) {
+                            addWobble(best.rest, v1.copy(n).multiplyScalar(vn * CFG.wobbleGain));
+                            U.uSqDir.value.lerp(v1.copy(n).negate(), 0.5).normalize();
+                            squash.v += Math.min(-vn, 15) * CFG.squashGain * (0.3 + Math.abs(n.y));
+                        }
                     }
                 }
             }
 
-            // Pudding schluckt Energie: Bewegung in den Kopf hinein wird gebremst
-            if (touching) {
-                contactPt.divideScalar(penSum);
-                contactN.normalize();
-                const vn = pickle.vel.dot(contactN);
-                if (vn < 0) force.addScaledVector(contactN, -vn * 12);
-
-                // Wabbeln: Reibung + Stoß an der Kontaktstelle
-                const impulse = tmp.copy(pickle.vel).multiplyScalar(CFG.wobbleGain * dt * 9);
-                impulse.addScaledVector(contactN, -Math.min(penSum, 0.6) * dt * 6);
-                addWobble(contactPt, impulse);
-
-                if (!wasTouching && vn < -0.5) {
-                    // Aufprall: Stauchung entlang der Stoßrichtung + kräftiger Wabbel
-                    jelly.uSqDir.value.lerp(contactN, 0.7).normalize();
-                    squash.v += Math.min(-vn, 12) * CFG.squashGain;
-                    addWobble(contactPt, tmp.copy(contactN).multiplyScalar(vn * 0.12));
-                }
+            // --- Punchingball-Feder (kippt um den festen Punkt unten) ---
+            tiltPrevVel.copy(head.tiltVel);
+            v1.set(Math.sin(t * 0.5) * 0.015, Math.sin(t * 0.37) * 0.04, Math.sin(t * 0.43) * 0.02); // leichtes Schweben
+            v1.sub(head.tilt).multiplyScalar(CFG.headStiffness);
+            head.tiltVel.addScaledVector(v1, dt);
+            head.tiltVel.multiplyScalar(Math.max(0, 1 - CFG.headDamping * dt));
+            head.tilt.addScaledVector(head.tiltVel, dt);
+            if (head.tilt.length() > CFG.maxTilt) {
+                head.tilt.setLength(CFG.maxTilt);
+                const out = head.tiltVel.dot(v1.copy(head.tilt).normalize());
+                if (out > 0) head.tiltVel.addScaledVector(v1, -out * 1.3);
             }
-            wasTouching = touching;
 
-            pickle.vel.addScaledVector(force, dt);
-            if (pickle.vel.length() > 25) pickle.vel.setLength(25);
-            pickle.pos.addScaledVector(pickle.vel, dt);
+            // --- Nachschwingen oben: getrieben von der Kipp-Beschleunigung ---
+            v1.copy(head.tiltVel).sub(tiltPrevVel);
+            head.whipVel.addScaledVector(v1, -CFG.whipGain * 30);
+            head.whipVel.addScaledVector(head.whip, -CFG.whipStiffness * dt);
+            head.whipVel.multiplyScalar(Math.max(0, 1 - CFG.whipDamping * dt));
+            head.whip.addScaledVector(head.whipVel, dt);
+            if (head.whip.length() > 0.3) head.whip.setLength(0.3);
 
-            // --- Kopf bleibt in der Mitte, gibt aber kurz nach ---
-            head.vel.addScaledVector(headForce, dt * 0.004);
-            head.vel.addScaledVector(hc, -CFG.headSpring * dt);
-            head.vel.multiplyScalar(Math.max(0, 1 - 6 * dt));
-            hc.addScaledVector(head.vel, dt);
-
-            stepJelly(dt);
+            // --- lokale Wabbel-Federn & Stauchen ---
+            for (const w of wob) {
+                w.v.addScaledVector(w.d, -CFG.wobbleStiffness * dt);
+                w.v.multiplyScalar(Math.max(0, 1 - CFG.wobbleDamping * dt));
+                w.d.addScaledVector(w.v, dt);
+                if (w.d.length() > 0.35) w.d.setLength(0.35);
+            }
+            squash.v += -CFG.wobbleStiffness * 0.8 * squash.x * dt;
+            squash.v *= Math.max(0, 1 - CFG.wobbleDamping * dt);
+            squash.x = THREE.MathUtils.clamp(squash.x + squash.v * dt, -0.2, 0.2);
+            U.uSq.value = squash.x;
 
             // --- Gurke ausrichten: Spitze zeigt in Bewegungsrichtung ---
             const sp = pickle.vel.length();
             if (sp > 0.6) {
-                tmp.copy(pickle.vel).divideScalar(sp);
-                if (tmp.dot(desiredAxis) < 0 && sp < 4) tmp.negate(); // nicht ständig umklappen
-                desiredAxis.lerp(tmp, Math.min(1, sp * 0.6 * dt)).normalize();
+                v1.copy(pickle.vel).divideScalar(sp);
+                if (v1.dot(desiredAxis) < 0 && sp < 4) v1.negate();
+                desiredAxis.lerp(v1, Math.min(1, sp * 0.6 * dt)).normalize();
             } else {
-                // im Leerlauf: sanftes Schaukeln
-                tmp.set(Math.cos(t * 0.7), Math.sin(t * 0.9) * 0.35, Math.sin(t * 0.5) * 0.3).normalize();
-                desiredAxis.lerp(tmp, 0.6 * dt).normalize();
+                v1.set(Math.cos(t * 0.7), Math.sin(t * 0.9) * 0.35, Math.sin(t * 0.5) * 0.3).normalize();
+                desiredAxis.lerp(v1, 0.6 * dt).normalize();
             }
             pickle.axis.lerp(desiredAxis, Math.min(1, 10 * dt)).normalize();
         }
@@ -400,7 +474,6 @@
         // ================== LOOP ==================
         const clock = new THREE.Clock();
         const X = new THREE.Vector3(1, 0, 0);
-        const idleRot = new THREE.Euler();
 
         function animate() {
             requestAnimationFrame(animate);
@@ -408,22 +481,15 @@
             const t = clock.elapsedTime;
 
             updateTarget();
-            const sub = 3;
+            const sub = 4;
             for (let i = 0; i < sub; i++) step(dt / sub, t);
 
-            // Gurke positionieren
             pickle.root.position.copy(pickle.pos);
             pickle.root.quaternion.setFromUnitVectors(X, pickle.axis);
 
-            // Kopf: leichtes Schweben/Schaukeln
-            idleRot.set(Math.sin(t * 0.6) * 0.05, Math.sin(t * 0.4) * 0.12, Math.sin(t * 0.5) * 0.03);
-            head.root.rotation.copy(idleRot);
-
-            // Shader-Uniforms (Weltkoordinaten)
-            jelly.uCenter.value.copy(head.root.position);
-            jelly.uCapR.value = pickle.radius * 1.12;
-            jelly.uSegA.value.copy(pickle.pos).addScaledVector(pickle.axis, -pickle.half);
-            jelly.uSegB.value.copy(pickle.pos).addScaledVector(pickle.axis, pickle.half);
+            U.uCapR.value = pickle.radius * 1.05;
+            U.uSegA.value.copy(pickle.pos).addScaledVector(pickle.axis, -pickle.half);
+            U.uSegB.value.copy(pickle.pos).addScaledVector(pickle.axis, pickle.half);
 
             renderer.render(scene, camera);
         }
