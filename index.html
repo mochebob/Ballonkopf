@@ -274,11 +274,12 @@
             model.traverse((c) => {
                 if (c.isMesh) {
                     c.frustumCulled = false;
-                    (Array.isArray(c.material) ? c.material : [c.material]).forEach(makeJelly);
+                    (Array.isArray(c.material) ? c.material : [c.material]).forEach((m) => { makeJelly(m); swapReg.head.push(m); });
                     if (c.morphTargetDictionary && 'MundAuf' in c.morphTargetDictionary) setupMouth(c);
                 }
             });
             head.ready = true;
+            snapshotSwap();
             document.querySelector('.loading').style.display = 'none';
         }
 
@@ -465,10 +466,17 @@
         // Gurke für den Biss vorbereiten: eigene Materialien + hellgrüne Innenseite
         function prepareBite(inner) {
             const fleshMat = makeBiteable(new THREE.MeshStandardMaterial({ color: 0xd9e89a, roughness: 0.55, side: THREE.BackSide }));
+            swapReg.flesh = fleshMat;
             const meshes = [];
             inner.traverse((c) => { if (c.isMesh) meshes.push(c); });
+            const bite = (x) => {
+                const m = makeBiteable(x.clone());
+                m.side = THREE.FrontSide;          // Innenseite zeigt das hellgrüne Fruchtfleisch
+                swapReg.pickle.push(m);
+                return m;
+            };
             for (const m of meshes) {
-                m.material = Array.isArray(m.material) ? m.material.map((x) => makeBiteable(x.clone())) : makeBiteable(m.material.clone());
+                m.material = Array.isArray(m.material) ? m.material.map(bite) : bite(m.material);
                 const flesh = new THREE.Mesh(m.geometry, fleshMat);
                 flesh.renderOrder = -1;
                 m.add(flesh);
@@ -492,10 +500,52 @@
             const s = CFG.pickleLength / len;
             inner.scale.setScalar(s);
             pickleTemplate = inner.clone();   // saubere Vorlage für die Mini-Gurken
+            pickleTemplate.traverse((c) => { if (c.isMesh) [].concat(c.material).forEach((m) => swapReg.pickle.push(m)); });
             prepareBite(inner);
             pickle.root.add(inner);
             pickle.radius = thick * s * 0.5;
             pickle.half = Math.max(0.01, CFG.pickleLength / 2 - pickle.radius);
+            snapshotSwap();
+        }
+
+        // ================== TEXTUR-TAUSCH ==================
+        const swapReg = { head: [], pickle: [], flesh: null, snap: null, on: false };
+        const SWAP_MAPS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'specularColorMap'];
+        const takeSnap = (m) => {
+            const s = { color: m.color.clone(), roughness: m.roughness, metalness: m.metalness, normalScale: m.normalScale ? m.normalScale.clone() : null };
+            for (const k of SWAP_MAPS) s[k] = m[k] || null;
+            return s;
+        };
+        // sobald Kopf UND Gurke geladen sind, Originale merken
+        function snapshotSwap() {
+            if (swapReg.snap || !swapReg.head.length || !swapReg.pickle.length) return;
+            swapReg.snap = { head: takeSnap(swapReg.head[0]), pickle: takeSnap(swapReg.pickle[0]) };
+            if (swapReg.on) applySwap();
+        }
+        function putSnap(m, s) {
+            for (const k of SWAP_MAPS) if (k in m || s[k]) m[k] = s[k];
+            m.color.copy(s.color);
+            m.roughness = s.roughness;
+            m.metalness = s.metalness;
+            if (s.normalScale && m.normalScale) m.normalScale.copy(s.normalScale);
+            m.needsUpdate = true;
+        }
+        function applySwap() {
+            const S = swapReg.snap;
+            if (!S) return;
+            const on = swapReg.on;
+            swapReg.head.forEach((m) => putSnap(m, on ? S.pickle : S.head));
+            swapReg.pickle.forEach((m) => putSnap(m, on ? S.head : S.pickle));
+            // Gurken-Inneres: normal hellgrün, getauscht fleischig-rosa
+            if (swapReg.flesh) swapReg.flesh.color.set(on ? 0xe9a597 : 0xd9e89a);
+            crumbMats[0].color.set(on ? 0xe9a597 : 0xd9e89a);
+            crumbMats[1].color.set(on ? 0xb5785e : 0x4f7a22);
+        }
+        function toggleSwap() {
+            swapReg.on = !swapReg.on;
+            applySwap();
+            swapBtn.style.background = swapReg.on ? 'rgba(255,255,255,.92)' : 'transparent';
+            swapBtn.style.color = swapReg.on ? '#222' : 'rgba(128,128,128,.95)';
         }
 
         new GLTFLoader().load('gurke.glb',
@@ -689,11 +739,21 @@
             b.style.cssText = btnCss;
             b.addEventListener('pointerdown', (e) => { e.stopPropagation(); initAudio(); setMode(b.dataset.m); });
         });
+        // Textur-Tausch: eigener Schalter, funktioniert in beiden Modi
+        const sep = document.createElement('span');
+        sep.style.cssText = 'width:1px;margin:5px 3px;background:rgba(128,128,128,.35)';
+        const swapBtn = document.createElement('button');
+        swapBtn.textContent = '🔄 Tausch';
+        swapBtn.title = 'Texturen von Kopf und Gurke tauschen (Taste T)';
+        swapBtn.style.cssText = btnCss + ';background:transparent;color:rgba(128,128,128,.95)';
+        swapBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); initAudio(); toggleSwap(); });
+        ui.append(sep, swapBtn);
         document.body.appendChild(ui);
+        addEventListener('keydown', (e) => { if (e.key === 't' || e.key === 'T') toggleSwap(); });
 
         function setMode(m) {
             mode = m;
-            ui.querySelectorAll('button').forEach((b) => {
+            ui.querySelectorAll('button[data-m]').forEach((b) => {
                 const on = b.dataset.m === m;
                 b.style.background = on ? 'rgba(255,255,255,.92)' : 'transparent';
                 b.style.color = on ? '#222' : 'rgba(128,128,128,.95)';
