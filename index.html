@@ -84,6 +84,16 @@
 
             // Sound
             soundVolume: 0.8,
+
+            // Schießmodus
+            shotSize: 0.38,         // Mini-Gurke relativ zur großen
+            shotSpeed: 22,          // Geschwindigkeit
+            shotMass: 0.35,         // Wucht pro Gurke (große Gurke = 1)
+            shotGravity: 7,         // wie schnell sie nach dem Abprallen runterfallen
+            shotBounce: 0.45,
+            fireRate: 9,            // Schuss pro Sekunde bei gedrückter Maustaste
+            shotLifetime: 4,        // Sekunden bis sie verschwinden
+            maxShots: 40,
         };
 
         // ================== SZENE ==================
@@ -285,6 +295,7 @@
             half: 0.45,
         };
         scene.add(pickle.root);
+        let pickleTemplate = null; // Vorlage für die Mini-Gurken
 
         function setupPickle(model) {
             const box = new THREE.Box3().setFromObject(model);
@@ -299,6 +310,7 @@
             const s = CFG.pickleLength / len;
             inner.scale.setScalar(s);
             pickle.root.add(inner);
+            pickleTemplate = inner;
             pickle.radius = thick * s * 0.5;
             pickle.half = Math.max(0.01, CFG.pickleLength / 2 - pickle.radius);
         }
@@ -374,7 +386,7 @@
         function impact(restPoint, speed) {
             const now = performance.now();
             const s = THREE.MathUtils.clamp(speed / 10, 0, 1);    // 0..1 Schlagstärke
-            if (now - lastImpact < 70) return;                     // nicht dauerfeuern
+            if (now - lastImpact < 45) return;                     // nicht dauerfeuern
             lastImpact = now;
 
             // Schockwelle
@@ -383,7 +395,6 @@
             U.uRipT.value[ripIdx] = 0;
             ripIdx = (ripIdx + 1) % NRIP;
 
-            pSquash.v -= CFG.pickleSquash * 22 * (0.3 + s);
             shake = Math.max(shake, CFG.cameraShake * s * s);
             playSquish(s);
         }
@@ -464,6 +475,153 @@
             n.start(t, Math.random() * 0.3); n.stop(t + 0.16);
         }
 
+        // ================== MODI: STEUERN / SCHIESSEN ==================
+        let mode = 'steer';
+        const ui = document.createElement('div');
+        ui.innerHTML = `
+            <button data-m="steer" title="Gurke mit dem Cursor steuern">🥒 Steuern</button>
+            <button data-m="shoot" title="Mini-Gurken schießen (Taste M wechselt)">🎯 Schießen</button>`;
+        ui.style.cssText = 'position:fixed;top:14px;right:14px;display:flex;gap:2px;padding:3px;border-radius:999px;background:rgba(128,128,128,.18);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:10;cursor:pointer;user-select:none';
+        const btnCss = 'border:0;border-radius:999px;padding:7px 13px;font:600 12px sans-serif;cursor:pointer;transition:background .2s,color .2s';
+        ui.querySelectorAll('button').forEach((b) => {
+            b.style.cssText = btnCss;
+            b.addEventListener('pointerdown', (e) => { e.stopPropagation(); initAudio(); setMode(b.dataset.m); });
+        });
+        document.body.appendChild(ui);
+
+        function setMode(m) {
+            mode = m;
+            ui.querySelectorAll('button').forEach((b) => {
+                const on = b.dataset.m === m;
+                b.style.background = on ? 'rgba(255,255,255,.92)' : 'transparent';
+                b.style.color = on ? '#222' : 'rgba(128,128,128,.95)';
+            });
+            container.style.cursor = m === 'shoot' ? 'crosshair' : 'none';
+            pickle.root.visible = m === 'steer';
+            if (m === 'steer') {
+                // große Gurke taucht beim Cursor wieder auf
+                updateTarget();
+                pickle.pos.copy(target).add(new THREE.Vector3(0, 0, 1.5));
+                pickle.vel.set(0, 0, 0);
+            }
+            firing = false;
+        }
+        addEventListener('keydown', (e) => {
+            if (e.key === 'm' || e.key === 'M') setMode(mode === 'steer' ? 'shoot' : 'steer');
+        });
+
+        // ================== MINI-GURKEN-GESCHOSSE ==================
+        const shots = [];
+        let firing = false, fireCooldown = 0;
+        const sv1 = new THREE.Vector3(), sv2 = new THREE.Vector3(), sq = new THREE.Quaternion();
+
+        addEventListener('pointerdown', (e) => {
+            if (mode !== 'shoot' || e.button > 0) return;
+            firing = true;
+            fireCooldown = 0; // erster Schuss sofort
+        });
+        addEventListener('pointerup', () => { firing = false; });
+        addEventListener('pointercancel', () => { firing = false; });
+        addEventListener('blur', () => { firing = false; });
+
+        function fireShot() {
+            if (!pickleTemplate) return;
+            raycaster.setFromCamera(ndc, camera);
+            const dir = raycaster.ray.direction;
+
+            // Zielpunkt: dort, wo der Cursor-Strahl die Ebene durch die Kopfmitte trifft
+            const aim = sv1;
+            raycaster.ray.intersectPlane(plane.set(sv2.set(0, 0, 1), 0), aim) || aim.copy(camera.position).addScaledVector(dir, 7);
+
+            let s = shots.length >= CFG.maxShots ? shots.shift() : null;
+            if (!s) {
+                const mesh = pickleTemplate.clone();
+                const root = new THREE.Group();
+                root.add(mesh);
+                scene.add(root);
+                s = { root, pos: new THREE.Vector3(), vel: new THREE.Vector3(), axis: new THREE.Vector3(),
+                      spin: new THREE.Vector3(), radius: 0, half: 0, age: 0, sq: { x: 0, v: 0 } };
+            }
+            const k = CFG.shotSize;
+            s.radius = pickle.radius * k;
+            s.half = pickle.half * k;
+            s.root.scale.setScalar(k);
+            s.root.visible = true;
+            s.age = 0;
+            s.sq.x = 0; s.sq.v = 0;
+
+            // Start knapp vor der Kamera, leicht unterhalb – wie aus der Hand geworfen
+            s.pos.copy(camera.position).addScaledVector(dir, 2.8).add(sv2.set(0, -0.12, 0));
+            const flight = s.pos.distanceTo(aim) / CFG.shotSpeed;
+            aim.y += 0.5 * CFG.shotGravity * flight * flight;   // Fallen ausgleichen
+            s.vel.copy(aim).sub(s.pos).normalize().multiplyScalar(CFG.shotSpeed);
+            s.vel.x += (Math.random() - 0.5) * 0.6;
+            s.vel.y += (Math.random() - 0.5) * 0.6;
+
+            // fliegt mit der Spitze voran und dreht sich dabei
+            s.axis.copy(s.vel).normalize();
+            s.spin.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize().multiplyScalar(4 + Math.random() * 6);
+            shots.push(s);
+            playShoot();
+        }
+
+        function stepShots(dt) {
+            if (mode === 'shoot' && firing) {
+                fireCooldown -= dt;
+                if (fireCooldown <= 0) { fireShot(); fireCooldown += 1 / CFG.fireRate; }
+            }
+            for (let i = shots.length - 1; i >= 0; i--) {
+                const s = shots[i];
+                s.age += dt;
+                s.vel.y -= CFG.shotGravity * dt;
+                s.pos.addScaledVector(s.vel, dt);
+                const hit = collide(s, CFG.shotMass, 3, CFG.shotBounce, (str) => { s.sq.v -= 14 * Math.min(1.5, str / 8); });
+                if (hit > 2) s.spin.multiplyScalar(1.6).add(sv1.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(8));
+                s.axis.applyAxisAngle(sv2.copy(s.spin).normalize(), s.spin.length() * dt).normalize();
+                s.sq.v += (-700 * s.sq.x - 10 * s.sq.v) * dt;
+                s.sq.x += s.sq.v * dt;
+
+                if (s.age > CFG.shotLifetime || s.pos.y < -12) {
+                    scene.remove(s.root);
+                    shots.splice(i, 1);
+                }
+            }
+        }
+
+        function renderShots() {
+            for (const s of shots) {
+                s.root.position.copy(s.pos);
+                s.root.quaternion.setFromUnitVectors(X, s.axis);
+                const fade = THREE.MathUtils.clamp((CFG.shotLifetime - s.age) / 0.5, 0, 1); // am Ende schrumpfen
+                const k = CFG.shotSize * fade;
+                const p = THREE.MathUtils.clamp(s.sq.x, -0.45, 0.45);
+                s.root.scale.set(k * (1 + p), k * (1 - p * 0.5), k * (1 - p * 0.5));
+            }
+        }
+
+        // Plopp beim Abschießen
+        function playShoot() {
+            if (!actx || actx.state !== 'running') return;
+            const t = actx.currentTime;
+            const o = actx.createOscillator(), g = actx.createGain();
+            o.type = 'sine';
+            o.frequency.setValueAtTime(520 + Math.random() * 120, t);
+            o.frequency.exponentialRampToValueAtTime(140, t + 0.07);
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(0.35, t + 0.004);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+            o.connect(g).connect(master);
+            o.start(t); o.stop(t + 0.1);
+
+            const n = actx.createBufferSource(), hp = actx.createBiquadFilter(), g2 = actx.createGain();
+            n.buffer = noiseBuf;
+            hp.type = 'highpass'; hp.frequency.value = 2500;
+            g2.gain.setValueAtTime(0.12, t);
+            g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+            n.connect(hp).connect(g2).connect(master);
+            n.start(t, Math.random() * 0.3); n.stop(t + 0.06);
+        }
+
         // ================== PHYSIK ==================
         const v1 = new THREE.Vector3(), v2 = new THREE.Vector3(), v3 = new THREE.Vector3();
         const rest = new THREE.Vector3(), nW = new THREE.Vector3(), arm = new THREE.Vector3();
@@ -473,13 +631,13 @@
         const desiredAxis = new THREE.Vector3(1, 0, 0);
         const SAMPLES = 9;
 
-        // tiefster Eindring-Punkt der Gurke in den (verbogenen) Kopf
-        function findContact() {
+        // tiefster Eindring-Punkt einer Gurke in den (verbogenen) Kopf
+        function findContact(body, samples = SAMPLES) {
             best.pen = 0;
             const anchor = U.uAnchor.value;
-            for (let i = 0; i < SAMPLES; i++) {
-                const f = (i / (SAMPLES - 1)) * 2 - 1;
-                const p = v1.copy(pickle.pos).addScaledVector(pickle.axis, f * pickle.half);
+            for (let i = 0; i < samples; i++) {
+                const f = samples > 1 ? (i / (samples - 1)) * 2 - 1 : 0;
+                const p = v1.copy(body.pos).addScaledVector(body.axis, f * body.half);
 
                 // Weltpunkt -> Ruhelage des Kopfes (Biegung rückgängig machen, 2 Iterationen)
                 let h = heightOf(p);
@@ -494,7 +652,7 @@
                 const q = v3.set(rel.x / head.axes.x, rel.y / head.axes.y, rel.z / head.axes.z);
                 const s = Math.max(q.length(), 1e-4);
                 const dist = (s - 1) * rel.length() / s;
-                const pen = pickle.radius - dist;
+                const pen = body.radius - dist;
                 if (pen > best.pen) {
                     best.pen = pen;
                     best.h = h;
@@ -502,62 +660,70 @@
                     // Normale in Ruhelage -> Welt
                     best.n.set(q.x / head.axes.x, q.y / head.axes.y, q.z / head.axes.z).normalize();
                     rotateAA(best.n, angleAt(h, ang), 1);
-                    best.p.copy(p).addScaledVector(best.n, -pickle.radius); // Kontaktpunkt
+                    best.p.copy(p).addScaledVector(best.n, -body.radius); // Kontaktpunkt
                 }
             }
             return best.pen > 0;
         }
 
-        function step(dt, t) {
+        // Gurke (beliebiger Größe/Masse) gegen den Kopf auflösen. Gibt die Aufprallgeschwindigkeit zurück.
+        function collide(body, mass, samples, bounce, onHit) {
+            if (!head.ready) return 0;
             const anchor = U.uAnchor.value;
+            let hitSpeed = 0;
+            for (let iter = 0; iter < 3 && findContact(body, samples); iter++) {
+                const n = best.n, h = best.h;
+                // 1) rausschieben – die Gurke kommt NIE in den Kopf
+                body.pos.addScaledVector(n, best.pen);
 
-            // --- Gurke folgt dem Cursor (gedämpfte Feder) ---
-            const k = CFG.followStiffness;
-            const c = 2 * Math.sqrt(k) * CFG.followDamping;
-            v1.copy(target).sub(pickle.pos).multiplyScalar(k).addScaledVector(pickle.vel, -c);
-            pickle.vel.addScaledVector(v1, dt);
-            if (pickle.vel.length() > 30) pickle.vel.setLength(30);
-            pickle.pos.addScaledVector(pickle.vel, dt);
+                // 2) Impuls zwischen Gurke und kippendem Kopf
+                arm.copy(best.p).sub(anchor);
+                const sH = bendS(h);
+                omega.copy(head.tiltVel).multiplyScalar(sH);
+                surfV.crossVectors(omega, arm);
+                const vRel = v2.copy(body.vel).sub(surfV);
+                const vn = vRel.dot(n);
+                if (vn >= 0) continue;
 
-            // --- Kollision: Gurke darf NICHT in den Kopf ---
-            if (head.ready) {
-                for (let iter = 0; iter < 3 && findContact(); iter++) {
-                    const n = best.n, h = best.h;
-                    // 1) rausschieben
-                    pickle.pos.addScaledVector(n, best.pen);
+                const rxn = v3.crossVectors(arm, n);
+                const invHead = sH * sH * rxn.lengthSq() / CFG.headInertia;
+                const j = -(1 + bounce) * vn / (1 / mass + invHead);
+                body.vel.addScaledVector(n, j / mass);
+                head.tiltVel.addScaledVector(rxn, -j * sH / CFG.headInertia);
 
-                    // 2) Impuls zwischen Gurke (Masse 1) und kippendem Kopf
-                    arm.copy(best.p).sub(anchor);
-                    const sH = bendS(h);
-                    omega.copy(head.tiltVel).multiplyScalar(sH);
-                    surfV.crossVectors(omega, arm);
-                    const vRel = v2.copy(pickle.vel).sub(surfV);
-                    const vn = vRel.dot(n);
-                    if (vn < 0) {
-                        const rxn = v3.crossVectors(arm, n);
-                        const invHead = sH * sH * rxn.lengthSq() / CFG.headInertia;
-                        const j = -(1 + CFG.bounce) * vn / (1 + invHead);
-                        pickle.vel.addScaledVector(n, j);
-                        // Drehimpuls auf den Kopf: tiltVel -= sH * (arm × n·j) / I
-                        head.tiltVel.addScaledVector(rxn, -j * sH / CFG.headInertia);
+                // Reibung: Streifen nimmt den Kopf ein bisschen mit
+                const vt = vRel.addScaledVector(n, -vn);
+                const jt = vt.multiplyScalar(-0.25 / (1 / mass + invHead));
+                body.vel.addScaledVector(jt, 1 / mass);
+                head.tiltVel.addScaledVector(v3.crossVectors(arm, jt), -sH / CFG.headInertia);
 
-                        // Reibung: Streifen nimmt den Kopf ein bisschen mit
-                        const vt = vRel.addScaledVector(n, -vn);
-                        const jt = vt.multiplyScalar(-0.25 / (1 + invHead));
-                        pickle.vel.add(jt);
-                        head.tiltVel.addScaledVector(v3.crossVectors(arm, jt), -sH / CFG.headInertia);
-
-                        // Wackelpudding an der Trefferstelle
-                        if (-vn > 0.3) {
-                            addWobble(best.rest, v1.copy(n).multiplyScalar(vn * CFG.wobbleGain));
-                            U.uSqDir.value.lerp(v1.copy(n).negate(), 0.5).normalize();
-                            squash.v += Math.min(-vn, 15) * CFG.squashGain * (0.4 + Math.abs(n.y));
-                        }
-                        // spürbarer Treffer: Welle + Gurke staucht + Kamera + Sound
-                        if (-vn > 1.2) impact(best.rest, -vn);
-                    }
+                // Wackelpudding an der Trefferstelle (skaliert mit dem Impuls)
+                const strength = Math.min(-vn, 30) * Math.min(1, mass * 1.6);
+                if (strength > 0.3) {
+                    addWobble(best.rest, v1.copy(n).multiplyScalar(-strength * CFG.wobbleGain));
+                    U.uSqDir.value.lerp(v1.copy(n).negate(), 0.5).normalize();
+                    squash.v += Math.min(strength, 15) * CFG.squashGain * (0.4 + Math.abs(n.y));
                 }
+                // spürbarer Treffer: Welle + Kamera + Sound
+                if (strength > 1.2) { impact(best.rest, strength); if (onHit) onHit(strength); }
+                hitSpeed = Math.max(hitSpeed, -vn);
             }
+            return hitSpeed;
+        }
+
+        function step(dt, t) {
+            if (mode === 'steer') {
+                // --- Gurke folgt dem Cursor (gedämpfte Feder) ---
+                const k = CFG.followStiffness;
+                const c = 2 * Math.sqrt(k) * CFG.followDamping;
+                v1.copy(target).sub(pickle.pos).multiplyScalar(k).addScaledVector(pickle.vel, -c);
+                pickle.vel.addScaledVector(v1, dt);
+                if (pickle.vel.length() > 30) pickle.vel.setLength(30);
+                pickle.pos.addScaledVector(pickle.vel, dt);
+                collide(pickle, 1, SAMPLES, CFG.bounce, (s) => { pSquash.v -= CFG.pickleSquash * 22 * (0.3 + Math.min(1, s / 10)); });
+            }
+
+            stepShots(dt);
 
             // --- Punchingball-Feder (kippt um den festen Punkt unten) ---
             tiltPrevVel.copy(head.tiltVel);
@@ -633,12 +799,19 @@
 
             camera.position.set((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake, 7);
 
+            renderShots();
+
             U.uCapR.value = pickle.radius * 1.05;
-            U.uSegA.value.copy(pickle.pos).addScaledVector(pickle.axis, -pickle.half);
-            U.uSegB.value.copy(pickle.pos).addScaledVector(pickle.axis, pickle.half);
+            if (mode === 'steer') {
+                U.uSegA.value.copy(pickle.pos).addScaledVector(pickle.axis, -pickle.half);
+                U.uSegB.value.copy(pickle.pos).addScaledVector(pickle.axis, pickle.half);
+            } else {
+                U.uSegA.value.set(100, 100, 100); U.uSegB.value.set(100, 100, 101);
+            }
 
             renderer.render(scene, camera);
         }
+        setMode('steer');
         animate();
 
         addEventListener('resize', () => {
