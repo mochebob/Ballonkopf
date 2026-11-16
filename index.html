@@ -279,13 +279,19 @@
             U.uH.value = CFG.headHeight;
             U.uAnchor.value.set(0, -CFG.headHeight / 2, 0);
 
+            // Das Modell kann aus mehreren Teilen bestehen (z. B. Haut + Mundinnenraum)
+            const meshes = [];
             model.traverse((c) => {
                 if (c.isMesh) {
                     c.frustumCulled = false;
-                    (Array.isArray(c.material) ? c.material : [c.material]).forEach((m) => { makeJelly(m); swapReg.head.push(m); });
-                    if (c.morphTargetDictionary && 'MundAuf' in c.morphTargetDictionary) setupMouth(c);
+                    [].concat(c.material).forEach(makeJelly);
+                    meshes.push(c);
                 }
             });
+            const skin = meshes.reduce((a, b) => (b.geometry.attributes.position.count > a.geometry.attributes.position.count ? b : a));
+            [].concat(skin.material).forEach((m) => swapReg.head.push(m));   // nur die Haut wird getauscht
+            const mouthMeshes = meshes.filter((c) => c.morphTargetDictionary && 'MundAuf' in c.morphTargetDictionary);
+            if (mouthMeshes.length) setupMouth(mouthMeshes.includes(skin) ? skin : mouthMeshes[0], mouthMeshes);
             head.ready = true;
             snapshotSwap();
             document.querySelector('.loading').style.display = 'none';
@@ -374,9 +380,11 @@
             D.needsUpdate = true;
         }
 
-        function setupMouth(mesh) {
+        function setupMouth(mesh, all = [mesh]) {
             mouth.mesh = mesh;
+            mouth.meshes = all;                 // alle Teile mit Shape Key "MundAuf" bewegen sich mit
             mouth.index = mesh.morphTargetDictionary['MundAuf'];
+            for (const m of all) if (m !== mesh && m.geometry.morphAttributes.normal) delete m.geometry.morphAttributes.normal;
             const geo = mesh.geometry;
             // Shape-Key-Normalen würden nach dem Glätten nicht mehr passen
             if (geo.morphAttributes.normal) delete geo.morphAttributes.normal;
@@ -517,7 +525,7 @@
         }
 
         // ================== TEXTUR-TAUSCH ==================
-        const swapReg = { head: [], pickle: [], flesh: null, snap: null, on: false };
+        const swapReg = { head: [], pickle: [], flesh: null, snap: null, orig: new Map(), on: false };
         const SWAP_MAPS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'specularColorMap'];
         const takeSnap = (m) => {
             const s = { color: m.color.clone(), roughness: m.roughness, metalness: m.metalness, normalScale: m.normalScale ? m.normalScale.clone() : null };
@@ -527,7 +535,9 @@
         // sobald Kopf UND Gurke geladen sind, Originale merken
         function snapshotSwap() {
             if (swapReg.snap || !swapReg.head.length || !swapReg.pickle.length) return;
-            swapReg.snap = { head: takeSnap(swapReg.head[0]), pickle: takeSnap(swapReg.pickle[0]) };
+            // jedes Material merkt sich sein Original, damit "zurücktauschen" exakt wiederherstellt
+            [...swapReg.head, ...swapReg.pickle].forEach((m) => swapReg.orig.set(m, takeSnap(m)));
+            swapReg.snap = { head: swapReg.orig.get(swapReg.head[0]), pickle: swapReg.orig.get(swapReg.pickle[0]) };
             if (swapReg.on) applySwap();
         }
         function putSnap(m, s) {
@@ -542,8 +552,8 @@
             const S = swapReg.snap;
             if (!S) return;
             const on = swapReg.on;
-            swapReg.head.forEach((m) => putSnap(m, on ? S.pickle : S.head));
-            swapReg.pickle.forEach((m) => putSnap(m, on ? S.head : S.pickle));
+            swapReg.head.forEach((m) => putSnap(m, on ? S.pickle : swapReg.orig.get(m)));
+            swapReg.pickle.forEach((m) => putSnap(m, on ? S.head : swapReg.orig.get(m)));
             // Gurken-Inneres: normal hellgrün, getauscht fleischig-rosa
             if (swapReg.flesh) swapReg.flesh.color.set(on ? 0xe9a597 : 0xd9e89a);
             crumbMats[0].color.set(on ? 0xe9a597 : 0xd9e89a);
@@ -902,6 +912,7 @@
 
         // ================== MUND-VERHALTEN ==================
         const mv1 = new THREE.Vector3(), mv2 = new THREE.Vector3(), mAng = new THREE.Vector3();
+        const mvA = new THREE.Vector3(), mvB = new THREE.Vector3();
 
         function updateMouthWorld() {
             const anchor = U.uAnchor.value;
@@ -1011,33 +1022,13 @@
                 playSquish(0.5);
                 return true;
             }
-            // erreicht die Kamera -> Platsch auf den Bildschirm
+            // erreicht die Kamera -> trifft dich (Wackler + Platsch-Sound, keine Kleckse)
             if (s.pos.z > camera.position.z - 1.4) {
-                const p = sv2.copy(s.pos).project(camera);
-                splat((p.x + 1) / 2 * innerWidth, (1 - p.y) / 2 * innerHeight);
+                shake = Math.max(shake, 0.05);
+                playSquish(0.8);
                 return true;
             }
             return s.age > 3;
-        }
-
-        function splat(x, y) {
-            const col = swapReg.on ? ['#e9a597', '#b5785e'] : ['#c9dc78', '#5f8a2a'];
-            const size = 70 + Math.random() * 70;
-            const el = document.createElement('div');
-            el.style.cssText = `position:fixed;left:${x - size / 2}px;top:${y - size / 2}px;width:${size}px;height:${size}px;pointer-events:none;z-index:9;`
-                + 'transition:transform .25s cubic-bezier(.2,1.6,.4,1),opacity 1.4s ease-in 1s,translate 2.4s ease-in';
-            // Klecks
-            el.innerHTML = `<div style="position:absolute;inset:12%;border-radius:${50 + Math.random() * 15}% ${45 + Math.random() * 15}% ${55 + Math.random() * 10}% ${40 + Math.random() * 15}%;background:radial-gradient(circle at 40% 35%, ${col[0]}, ${col[1]} 75%);opacity:.92"></div>`;
-            el.style.transform = 'scale(0.2) rotate(' + (Math.random() * 360) + 'deg)';
-            document.body.appendChild(el);
-            requestAnimationFrame(() => requestAnimationFrame(() => {
-                el.style.transform = el.style.transform.replace('scale(0.2)', 'scale(1)');
-                el.style.opacity = '0';
-                el.style.translate = '0 40px';   // läuft langsam runter
-            }));
-            setTimeout(() => el.remove(), 2600);
-            shake = Math.max(shake, 0.05);
-            playSquish(0.8);
         }
 
         function renderRage(dt) {
@@ -1094,15 +1085,25 @@
             let want = 0;
             if (mode === 'steer') {
                 // nächstes Gurken-Ende zum Mund (angebissene Enden berücksichtigt)
+                // Abstand Mund -> nächster Punkt auf der (Rest-)Gurke
                 let dmin = Infinity, endSign = 1;
                 if (pickle.respawn <= 0) {
-                    const ends = pickleEnds();
-                    for (let e = 0; e < 2; e++) {
-                        const inset = Math.min(pickle.radius, (ends[1] - ends[0]) / 2);
-                        mv1.copy(pickle.pos).addScaledVector(pickle.axis, ends[e] + (e ? -inset : inset));
-                        const d = mv1.distanceTo(mouth.world) - pickle.radius;
-                        if (d < dmin) { dmin = d; endSign = e ? 1 : -1; }
-                    }
+                    // so gemessen, wie man es auf dem Bildschirm sieht: Gurke auf die Mund-Ebene projizieren
+                    const [eN, eP] = pickleEnds();
+                    const cam = camera.position, mz = mouth.world.z;
+                    const proj = (p, out) => out.copy(p).sub(cam).multiplyScalar((mz - cam.z) / (p.z - cam.z)).add(cam);
+                    const A = proj(mv1.copy(pickle.pos).addScaledVector(pickle.axis, eN), mvA);
+                    const B = proj(mv1.copy(pickle.pos).addScaledVector(pickle.axis, eP), mvB);
+                    mv2.copy(B).sub(A);
+                    const u = THREE.MathUtils.clamp(mv1.copy(mouth.world).sub(A).dot(mv2) / Math.max(mv2.lengthSq(), 1e-6), 0, 1);
+                    const tm = eN + u * (eP - eN);
+                    const C = mv1.copy(A).addScaledVector(mv2, u);
+                    const P3 = mv2.copy(pickle.pos).addScaledVector(pickle.axis, tm);
+                    const scale = (mz - cam.z) / (P3.z - cam.z);
+                    dmin = C.distanceTo(mouth.world) - pickle.radius * scale;
+                    if (P3.z - mz > 1.1) dmin += 10;          // zu weit vor dem Gesicht = kein Biss
+                    endSign = u >= 0.5 ? 1 : -1;              // abgebissen wird das Ende auf der Mund-Seite
+                    mouth.biteT = tm;
                 }
                 const inFront = pickle.pos.z > mouth.world.z - 0.3;
                 if (inFront) want = THREE.MathUtils.clamp((CFG.mouthReach - dmin) / (CFG.mouthReach - 0.4), 0, 1);
@@ -1142,10 +1143,11 @@
 
             // --- Stück abbeißen ---
             const [eN, eP] = pickleEnds();
-            const biteAt = endSign > 0 ? eP : eN;
-            mv2.copy(pickle.pos).addScaledVector(pickle.axis, biteAt);       // Bissstelle (für Krümel)
-            if (endSign > 0) pickle.cutP = eP - CFG.biteSize;
-            else pickle.cutN = eN + CFG.biteSize;
+            // Biss setzt dort an, wo die Gurke im Mund steckt (mind. halbe, max. doppelte biteSize)
+            const tm = mouth.biteT ?? (endSign > 0 ? eP : eN);
+            if (endSign > 0) pickle.cutP = THREE.MathUtils.clamp(tm, eP - CFG.biteSize * 2, eP - CFG.biteSize * 0.5);
+            else pickle.cutN = THREE.MathUtils.clamp(tm, eN + CFG.biteSize * 0.5, eN + CFG.biteSize * 2);
+            mv2.copy(pickle.pos).addScaledVector(pickle.axis, endSign > 0 ? pickle.cutP : pickle.cutN);   // Bissstelle (für Krümel)
             const [nN, nP] = pickleEnds();
             spawnCrumbs(mv2, 7);
 
@@ -1451,7 +1453,7 @@
 
             renderShots();
             renderRage(dt);
-            if (mouth.mesh) mouth.mesh.morphTargetInfluences[mouth.index] = mouth.x;
+            if (mouth.mesh) for (const m of mouth.meshes) m.morphTargetInfluences[m.morphTargetDictionary['MundAuf']] = mouth.x;
 
             U.uCapR.value = pickle.radius * 1.05;
             if (mode === 'steer' && pickle.respawn <= 0) {
