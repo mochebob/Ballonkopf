@@ -101,10 +101,13 @@
             // Rache: ab einer gewissen Menge schießt er zurück
             eatsToRage: 8,          // so viele Bissen/geschluckte Gurken füllen die Wut-Leiste
             hitsToRage: 30,         // ... oder so viele Treffer
-            rageCharge: 0.9,        // Sekunden Mund aufreißen + beben
-            rageDuration: 2.4,      // Sekunden Dauerfeuer
-            rageFireRate: 9,        // Gurken pro Sekunde
-            rageSpeed: 13,          // wie schnell sie auf dich zufliegen
+            rageCharge: 0.9,        // Sekunden Luft holen (zurücklehnen + beben)
+            rageDuration: 3.2,      // Sekunden Gurken-Feuer
+            rageFireRate: 30,       // Gurken pro Sekunde
+            rageSpeed: 12,          // wie schnell sie fliegen
+            rageSpread: 0.16,       // Streuung des Strahls
+            rageSweep: 0.75,        // wie weit er den Kopf nach links/rechts schwenkt (Radiant)
+            rageSweepSpeed: 2.6,    // wie schnell er schwenkt
 
             // Mund
             mouthReach: 1.9,        // ab dieser Entfernung öffnet er sich für die Gurke
@@ -962,18 +965,30 @@
             if (!rage.phase) return;
             rage.timer -= dt;
             if (rage.phase === 'charge') {
-                // Kopf lehnt sich zurück und bebt
-                head.tiltVel.x -= 1.2 * dt;
+                // Drache holt Luft: Kopf lehnt sich zurück und bebt
                 head.tiltVel.x += (Math.random() - 0.5) * 30 * dt;
                 head.tiltVel.z += (Math.random() - 0.5) * 30 * dt;
                 shake = Math.max(shake, 0.02);
-                if (rage.timer <= 0) { rage.phase = 'fire'; rage.timer = CFG.rageDuration; rage.fireCd = 0; }
+                if (rage.timer <= 0) { rage.phase = 'fire'; rage.timer = CFG.rageDuration; rage.fireCd = 0; rage.fireT = 0; }
             } else if (rage.phase === 'fire') {
+                rage.fireT += dt;
                 rage.fireCd -= dt;
-                if (rage.fireCd <= 0) { spit(); rage.fireCd += 1 / CFG.rageFireRate; }
+                while (rage.fireCd <= 0) { spit(); rage.fireCd += 1 / CFG.rageFireRate; }
                 rage.level = Math.max(0, rage.timer / CFG.rageDuration);
                 if (rage.timer <= 0) { rage.phase = null; rage.level = 0; mouth.cooldown = 0.8; }
             }
+        }
+
+        // Kopfhaltung während der Rache (Ziel für die Punchingball-Feder) – wie ein Feuer spuckender Drache
+        function rageHeadTarget(out) {
+            if (rage.phase === 'charge') return out.set(-0.35, 0, 0);                       // zurücklehnen, Luft holen
+            if (rage.phase === 'fire') {
+                const ph = rage.fireT * CFG.rageSweepSpeed;
+                return out.set(0.05 + 0.05 * Math.sin(ph * 2),                                // leicht nach vorne gestreckt
+                               CFG.rageSweep * Math.sin(ph),                                  // links-rechts schwenken
+                               -0.12 * Math.sin(ph));                                         // etwas mitneigen
+            }
+            return null;
         }
 
         // Mundöffnung während der Rache (wird von stepMouth abgefragt)
@@ -993,24 +1008,26 @@
             const s = { root, pos: new THREE.Vector3(), vel: new THREE.Vector3(), axis: new THREE.Vector3(), spin: new THREE.Vector3(),
                         radius: pickle.radius * k, half: pickle.half * k, age: 0, sq: { x: 0, v: 0 }, spit: true };
             root.scale.setScalar(k);
-            s.pos.copy(mouth.world).add(sv2.set(0, 0, 0.15));
+            // Blickrichtung des Kopfes an der Mundhöhe – der Strahl kommt dahin, wo er hinschaut
+            const fwd = rotateAA(sv1.set(0, 0.06, 1), angleAt(heightOf(mouth.restTop), sv2), 1).normalize();
+            s.pos.copy(mouth.world).addScaledVector(fwd, 0.15);
 
-            // zielt auf dich: Punkt kurz vor der Kamera, in Richtung Cursor, mit Streuung
-            raycaster.setFromCamera(ndc, camera);
-            const aim = sv1.copy(camera.position).addScaledVector(raycaster.ray.direction, 1.0);
-            aim.x += (Math.random() - 0.5) * 0.9;
-            aim.y += (Math.random() - 0.5) * 0.6;
-            s.vel.copy(aim).sub(s.pos).normalize().multiplyScalar(CFG.rageSpeed * (0.85 + Math.random() * 0.3));
+            // Feuerstrahl-Streuung
+            s.vel.copy(fwd).multiplyScalar(CFG.rageSpeed * (0.8 + Math.random() * 0.4));
+            s.vel.x += (Math.random() - 0.5) * CFG.rageSpread * CFG.rageSpeed;
+            s.vel.y += (Math.random() - 0.5) * CFG.rageSpread * CFG.rageSpeed;
+            s.vel.z += (Math.random() - 0.5) * CFG.rageSpread * CFG.rageSpeed * 0.5;
             s.axis.copy(s.vel).normalize();
-            s.spin.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize().multiplyScalar(5 + Math.random() * 6);
+            s.spin.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize().multiplyScalar(5 + Math.random() * 8);
             shots.push(s);
-            if (shots.length > CFG.maxShots + 20) { const o = shots.shift(); scene.remove(o.root); }
+            while (shots.length > CFG.maxShots + 120) { const o = shots.shift(); scene.remove(o.root); }
 
-            // Rückstoß im Kopf
-            head.tiltVel.x -= 0.25;
-            squash.v -= 0.5;
-            addWobble(sv2.copy(mouth.restTop), sv1.set(0, 0.1, 0.35));
-            playSpit();
+            // Rückstoß im Kopf (verteilt auf die Feuerrate)
+            const r = 9 / CFG.rageFireRate;
+            head.tiltVel.x -= 0.2 * r;
+            squash.v -= 0.4 * r;
+            addWobble(sv2.copy(mouth.restTop), sv1.set(0, 0.1, 0.35 * r));
+            if (Math.random() < 0.35) playSpit();
         }
 
         function spitHit(s) {
@@ -1370,13 +1387,14 @@
 
             // --- Punchingball-Feder (kippt um den festen Punkt unten) ---
             tiltPrevVel.copy(head.tiltVel);
-            v1.set(Math.sin(t * 0.5) * 0.015, Math.sin(t * 0.37) * 0.04, Math.sin(t * 0.43) * 0.02); // leichtes Schweben
+            if (!rageHeadTarget(v1)) v1.set(Math.sin(t * 0.5) * 0.015, Math.sin(t * 0.37) * 0.04, Math.sin(t * 0.43) * 0.02); // leichtes Schweben
             v1.sub(head.tilt).multiplyScalar(CFG.headStiffness);
             head.tiltVel.addScaledVector(v1, dt);
             head.tiltVel.multiplyScalar(Math.max(0, 1 - CFG.headDamping * dt));
             head.tilt.addScaledVector(head.tiltVel, dt);
-            if (head.tilt.length() > CFG.maxTilt) {
-                head.tilt.setLength(CFG.maxTilt);
+            const maxTilt = rage.phase ? CFG.maxTilt + 0.35 : CFG.maxTilt;
+            if (head.tilt.length() > maxTilt) {
+                head.tilt.setLength(maxTilt);
                 const out = head.tiltVel.dot(v1.copy(head.tilt).normalize());
                 if (out > 0) head.tiltVel.addScaledVector(v1, -out * 1.3);
             }
