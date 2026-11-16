@@ -1026,13 +1026,8 @@
             const el = document.createElement('div');
             el.style.cssText = `position:fixed;left:${x - size / 2}px;top:${y - size / 2}px;width:${size}px;height:${size}px;pointer-events:none;z-index:9;`
                 + 'transition:transform .25s cubic-bezier(.2,1.6,.4,1),opacity 1.4s ease-in 1s,translate 2.4s ease-in';
-            // Klecks + Spritzer
-            let html = `<div style="position:absolute;inset:12%;border-radius:${50 + Math.random() * 15}% ${45 + Math.random() * 15}% ${55 + Math.random() * 10}% ${40 + Math.random() * 15}%;background:radial-gradient(circle at 40% 35%, ${col[0]}, ${col[1]} 75%);opacity:.92"></div>`;
-            for (let i = 0; i < 7; i++) {
-                const a = Math.random() * Math.PI * 2, r = 38 + Math.random() * 18, d = 6 + Math.random() * 14;
-                html += `<div style="position:absolute;left:${50 + Math.cos(a) * r - d / 2}%;top:${50 + Math.sin(a) * r - d / 2}%;width:${d}%;height:${d}%;border-radius:50%;background:${col[1]};opacity:.9"></div>`;
-            }
-            el.innerHTML = html;
+            // Klecks
+            el.innerHTML = `<div style="position:absolute;inset:12%;border-radius:${50 + Math.random() * 15}% ${45 + Math.random() * 15}% ${55 + Math.random() * 10}% ${40 + Math.random() * 15}%;background:radial-gradient(circle at 40% 35%, ${col[0]}, ${col[1]} 75%);opacity:.92"></div>`;
             el.style.transform = 'scale(0.2) rotate(' + (Math.random() * 360) + 'deg)';
             document.body.appendChild(el);
             requestAnimationFrame(() => requestAnimationFrame(() => {
