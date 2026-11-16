@@ -58,20 +58,32 @@
             // Punchingball (Kopf kippt um den festen Punkt unten)
             headInertia: 18,        // "Gewicht" des Kopfes – höher = schwerer zu schubsen
             headStiffness: 60,      // Rückstellfeder – höher = schneller zurück
-            headDamping: 1.4,       // wie schnell das Schaukeln abklingt
+            headDamping: 1.0,       // wie schnell das Schaukeln abklingt
             maxTilt: 0.6,           // maximales Kippen (Radiant)
             neckBend: 0.24,         // Anteil der Höhe, der sich biegt (der Rest kippt starr)
             bounce: 0.35,           // wie stark die Gurke abprallt (0–1)
 
             // Wackelpudding obendrauf
-            whipGain: 0.035,        // Nachschwingen der oberen Kopfhälfte
-            whipStiffness: 420,
-            whipDamping: 5,
-            wobbleGain: 0.10,       // lokales Wabbeln an der Trefferstelle
-            wobbleStiffness: 300,
-            wobbleDamping: 5,
-            wobbleRadius: 1.0,
-            squashGain: 0.012,      // Stauchen bei Treffern von oben/frontal
+            whipGain: 0.07,         // Nachschwingen der oberen Kopfhälfte
+            whipStiffness: 300,
+            whipDamping: 2.6,
+            wobbleGain: 0.22,       // lokales Wabbeln an der Trefferstelle
+            wobbleStiffness: 170,   // niedriger = langsameres, puddingartiges Wabbeln
+            wobbleDamping: 2.8,
+            wobbleRadius: 1.25,
+            squashGain: 0.022,      // Stauchen bei Treffern
+            squashDamping: 2.5,
+
+            // Treffer-Gefühl
+            rippleAmp: 0.16,        // Stärke der Welle, die über den Kopf läuft
+            rippleSpeed: 3.2,       // Ausbreitungsgeschwindigkeit
+            rippleWavelength: 0.9,
+            rippleDecay: 2.2,
+            pickleSquash: 0.35,     // wie stark die Gurke beim Aufprall gestaucht wird
+            cameraShake: 0.06,      // Kamera-Wackler bei harten Treffern
+
+            // Sound
+            soundVolume: 0.8,
         };
 
         // ================== SZENE ==================
@@ -102,6 +114,7 @@
 
         // ================== VERFORMUNGS-SHADER (GPU) ==================
         const NWOB = 6;
+        const NRIP = 4;
         const U = {
             uAnchor: { value: new THREE.Vector3(0, -2.3, 0) }, // fester Punkt unten
             uH:      { value: 4.6 },
@@ -116,6 +129,12 @@
             uSegA:   { value: new THREE.Vector3(100, 100, 100) },
             uSegB:   { value: new THREE.Vector3(100, 100, 101) },
             uCapR:   { value: 0.2 },
+            uRipC:   { value: Array.from({ length: NRIP }, () => new THREE.Vector3()) },
+            uRipA:   { value: new Array(NRIP).fill(0) },
+            uRipT:   { value: new Array(NRIP).fill(99) },
+            uRipK:   { value: (2 * Math.PI) / CFG.rippleWavelength },
+            uRipV:   { value: CFG.rippleSpeed },
+            uRipDecay: { value: CFG.rippleDecay },
         };
 
         const GLSL = /* glsl */`
@@ -123,6 +142,10 @@
             uniform float uH, uBend, uSq, uWobS2, uCapR;
             uniform vec3 uWobC[${NWOB}];
             uniform vec3 uWobD[${NWOB}];
+            uniform vec3 uRipC[${NRIP}];
+            uniform float uRipA[${NRIP}];
+            uniform float uRipT[${NRIP}];
+            uniform float uRipK, uRipV, uRipDecay;
 
             vec3 rotAA(vec3 v, vec3 aa) {          // Rodrigues: Rotation um Achse·Winkel
                 float a = length(aa);
@@ -148,6 +171,18 @@
                     o += uWobD[i] * exp(-dot(d, d) / uWobS2);
                 }
                 r += o * fix;
+
+                // Schockwelle: Delle an der Trefferstelle, die als Ring über den Kopf läuft
+                vec3 radial = normalize(r - vec3(0.0, 0.5 * uH, 0.0));
+                float w = 0.0;
+                for (int i = 0; i < ${NRIP}; i++) {
+                    float age = uRipT[i];
+                    float d = length((uAnchor + r) - uRipC[i]);
+                    float x = d - uRipV * age;
+                    float env = exp(-x * x / 0.35) * exp(-uRipDecay * age) / (1.0 + 0.8 * d);
+                    w += -uRipA[i] * cos(uRipK * x) * env;
+                }
+                r += radial * w * fix;
 
                 // Punchingball: Hals biegt sich, Kopf kippt; oben schwingt's nach
                 float s = smoothstep(0.0, uBend, h);
@@ -332,6 +367,103 @@
             best.v.add(impulse);
         }
 
+        // ================== TREFFER-GEFÜHL ==================
+        const pSquash = { x: 0, v: 0 };
+        let shake = 0, ripIdx = 0, lastImpact = 0;
+
+        function impact(restPoint, speed) {
+            const now = performance.now();
+            const s = THREE.MathUtils.clamp(speed / 10, 0, 1);    // 0..1 Schlagstärke
+            if (now - lastImpact < 70) return;                     // nicht dauerfeuern
+            lastImpact = now;
+
+            // Schockwelle
+            U.uRipC.value[ripIdx].copy(restPoint);
+            U.uRipA.value[ripIdx] = CFG.rippleAmp * (0.25 + 0.75 * s);
+            U.uRipT.value[ripIdx] = 0;
+            ripIdx = (ripIdx + 1) % NRIP;
+
+            pSquash.v -= CFG.pickleSquash * 22 * (0.3 + s);
+            shake = Math.max(shake, CFG.cameraShake * s * s);
+            playSquish(s);
+        }
+
+        // ================== SOUND (WebAudio, live erzeugt – keine Dateien) ==================
+        let actx = null, master = null, noiseBuf = null;
+        const hint = document.createElement('div');
+        hint.textContent = '🔊 Klicken für Sound';
+        hint.style.cssText = 'position:fixed;bottom:14px;left:50%;transform:translateX(-50%);font:12px sans-serif;color:rgba(128,128,128,.8);pointer-events:none;transition:opacity .6s';
+        document.body.appendChild(hint);
+
+        function initAudio() {
+            if (!actx) {
+                const AC = window.AudioContext || window.webkitAudioContext;
+                if (!AC) return;
+                actx = new AC();
+                master = actx.createDynamicsCompressor();
+                const out = actx.createGain();
+                out.gain.value = CFG.soundVolume;
+                master.connect(out).connect(actx.destination);
+                noiseBuf = actx.createBuffer(1, actx.sampleRate * 0.5, actx.sampleRate);
+                const d = noiseBuf.getChannelData(0);
+                for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+            }
+            if (actx.state !== 'running') actx.resume();
+            hint.style.opacity = 0;
+        }
+        ['pointerdown', 'keydown', 'touchstart'].forEach((e) => addEventListener(e, initAudio, { passive: true }));
+
+        function playSquish(s) {
+            if (!actx || actx.state !== 'running') return;
+            const t = actx.currentTime;
+            const vol = 0.25 + 0.75 * s;
+            const pitch = 0.85 + Math.random() * 0.3;
+
+            // 1) dumpfer Aufprall (Thump)
+            const o1 = actx.createOscillator(), g1 = actx.createGain();
+            o1.type = 'sine';
+            o1.frequency.setValueAtTime(190 * pitch, t);
+            o1.frequency.exponentialRampToValueAtTime(55, t + 0.14);
+            g1.gain.setValueAtTime(0.0001, t);
+            g1.gain.exponentialRampToValueAtTime(0.9 * vol, t + 0.005);
+            g1.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+            o1.connect(g1).connect(master);
+            o1.start(t); o1.stop(t + 0.22);
+
+            // 2) Wackelpudding-"Boing": Ton mit schnellem Vibrato, der ausschwingt
+            const o2 = actx.createOscillator(), g2 = actx.createGain();
+            const lfo = actx.createOscillator(), lfoG = actx.createGain();
+            o2.type = 'triangle';
+            const f = (140 + 80 * (1 - s)) * pitch;
+            o2.frequency.setValueAtTime(f * 1.5, t);
+            o2.frequency.exponentialRampToValueAtTime(f, t + 0.08);
+            lfo.frequency.setValueAtTime(11, t);
+            lfo.frequency.linearRampToValueAtTime(6, t + 0.6);
+            lfoG.gain.setValueAtTime(f * 0.18, t);
+            lfoG.gain.exponentialRampToValueAtTime(1, t + 0.6);
+            lfo.connect(lfoG).connect(o2.frequency);
+            g2.gain.setValueAtTime(0.0001, t);
+            g2.gain.exponentialRampToValueAtTime(0.35 * vol, t + 0.02);
+            g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.35 + 0.35 * s);
+            const lp = actx.createBiquadFilter();
+            lp.type = 'lowpass'; lp.frequency.value = 900;
+            o2.connect(g2).connect(lp).connect(master);
+            o2.start(t); lfo.start(t);
+            o2.stop(t + 0.75); lfo.stop(t + 0.75);
+
+            // 3) nasser Squelch (gefiltertes Rauschen mit Sweep)
+            const n = actx.createBufferSource(), bp = actx.createBiquadFilter(), g3 = actx.createGain();
+            n.buffer = noiseBuf;
+            bp.type = 'bandpass'; bp.Q.value = 3.5;
+            bp.frequency.setValueAtTime(1600 * pitch, t);
+            bp.frequency.exponentialRampToValueAtTime(280, t + 0.13);
+            g3.gain.setValueAtTime(0.0001, t);
+            g3.gain.exponentialRampToValueAtTime(0.5 * vol, t + 0.008);
+            g3.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
+            n.connect(bp).connect(g3).connect(master);
+            n.start(t, Math.random() * 0.3); n.stop(t + 0.16);
+        }
+
         // ================== PHYSIK ==================
         const v1 = new THREE.Vector3(), v2 = new THREE.Vector3(), v3 = new THREE.Vector3();
         const rest = new THREE.Vector3(), nW = new THREE.Vector3(), arm = new THREE.Vector3();
@@ -419,8 +551,10 @@
                         if (-vn > 0.3) {
                             addWobble(best.rest, v1.copy(n).multiplyScalar(vn * CFG.wobbleGain));
                             U.uSqDir.value.lerp(v1.copy(n).negate(), 0.5).normalize();
-                            squash.v += Math.min(-vn, 15) * CFG.squashGain * (0.3 + Math.abs(n.y));
+                            squash.v += Math.min(-vn, 15) * CFG.squashGain * (0.4 + Math.abs(n.y));
                         }
+                        // spürbarer Treffer: Welle + Gurke staucht + Kamera + Sound
+                        if (-vn > 1.2) impact(best.rest, -vn);
                     }
                 }
             }
@@ -444,19 +578,27 @@
             head.whipVel.addScaledVector(head.whip, -CFG.whipStiffness * dt);
             head.whipVel.multiplyScalar(Math.max(0, 1 - CFG.whipDamping * dt));
             head.whip.addScaledVector(head.whipVel, dt);
-            if (head.whip.length() > 0.3) head.whip.setLength(0.3);
+            if (head.whip.length() > 0.45) head.whip.setLength(0.45);
 
             // --- lokale Wabbel-Federn & Stauchen ---
             for (const w of wob) {
                 w.v.addScaledVector(w.d, -CFG.wobbleStiffness * dt);
                 w.v.multiplyScalar(Math.max(0, 1 - CFG.wobbleDamping * dt));
                 w.d.addScaledVector(w.v, dt);
-                if (w.d.length() > 0.35) w.d.setLength(0.35);
+                if (w.d.length() > 0.5) w.d.setLength(0.5);
             }
-            squash.v += -CFG.wobbleStiffness * 0.8 * squash.x * dt;
-            squash.v *= Math.max(0, 1 - CFG.wobbleDamping * dt);
-            squash.x = THREE.MathUtils.clamp(squash.x + squash.v * dt, -0.2, 0.2);
+            squash.v += -CFG.wobbleStiffness * 1.2 * squash.x * dt;
+            squash.v *= Math.max(0, 1 - CFG.squashDamping * dt);
+            squash.x = THREE.MathUtils.clamp(squash.x + squash.v * dt, -0.22, 0.22);
             U.uSq.value = squash.x;
+
+            // Wellen altern
+            for (let i = 0; i < NRIP; i++) U.uRipT.value[i] += dt;
+
+            // Gurken-Squash-Feder
+            pSquash.v += (-600 * pSquash.x - 9 * pSquash.v) * dt;
+            pSquash.x += pSquash.v * dt;
+            shake *= Math.max(0, 1 - 9 * dt);
 
             // --- Gurke ausrichten: Spitze zeigt in Bewegungsrichtung ---
             const sp = pickle.vel.length();
@@ -486,6 +628,10 @@
 
             pickle.root.position.copy(pickle.pos);
             pickle.root.quaternion.setFromUnitVectors(X, pickle.axis);
+            const ps = THREE.MathUtils.clamp(pSquash.x, -0.45, 0.45);
+            pickle.root.scale.set(1 + ps, 1 - ps * 0.5, 1 - ps * 0.5);
+
+            camera.position.set((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake, 7);
 
             U.uCapR.value = pickle.radius * 1.05;
             U.uSegA.value.copy(pickle.pos).addScaledVector(pickle.axis, -pickle.half);
