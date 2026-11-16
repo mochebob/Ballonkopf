@@ -94,6 +94,12 @@
             fireRate: 9,            // Schuss pro Sekunde bei gedrückter Maustaste
             shotLifetime: 4,        // Sekunden bis sie verschwinden
             maxShots: 40,
+
+            // Mund
+            mouthReach: 1.9,        // ab dieser Entfernung öffnet er sich für die Gurke
+            mouthRadius: 0.45,      // so nah muss eine Gurke an die Mundmitte zum Schnappen/Schlucken
+            mouthMaxOpen: 1.0,      // 0..1 – wie weit der Shape Key maximal geht
+            ohOnHit: 0.55,          // wie weit er bei Treffern "Oh!" macht
         };
 
         // ================== SZENE ==================
@@ -266,10 +272,129 @@
                 if (c.isMesh) {
                     c.frustumCulled = false;
                     (Array.isArray(c.material) ? c.material : [c.material]).forEach(makeJelly);
+                    if (c.morphTargetDictionary && 'MundAuf' in c.morphTargetDictionary) setupMouth(c);
                 }
             });
             head.ready = true;
             document.querySelector('.loading').style.display = 'none';
+        }
+
+        // ================== MUND (Shape Key "MundAuf") ==================
+        const mouth = {
+            mesh: null, index: 0,
+            x: 0, v: 0,                       // aktuelle Öffnung 0..1 + Geschwindigkeit
+            oh: 0,                            // "Oh!" nach Treffern
+            want: 0,                          // Vorfreude (Gurke kommt näher)
+            chomp: 0,                         // Zuschnappen (Timer)
+            chew: 0,                          // Kauen nach dem Schlucken (Timer)
+            cooldown: 0,
+            restTop: new THREE.Vector3(),     // Unterlippe in Ruhelage (Welt)
+            openDelta: new THREE.Vector3(),   // Weg der Unterlippe bei voll offen (Welt)
+            world: new THREE.Vector3(),       // aktuelle Mundmitte (Welt, inkl. Kippen)
+        };
+
+        // Wangen glätten: Wo der Shape Key Flächen stark auseinanderreißt, wird die
+        // Verschiebung weich zwischen festem Oberkopf und Unterkiefer verteilt.
+        function smoothMorph(geo, ti) {
+            const P = geo.attributes.position, D = geo.morphAttributes.position[ti];
+            const idx = geo.index ? geo.index.array : null;
+            if (!idx) return;
+            const rel = geo.morphTargetsRelative;
+            // UV-Nähte zusammenschweißen (gleiche Position = gleicher Punkt)
+            const map = new Map(), gid = new Int32Array(P.count);
+            let G = 0;
+            for (let i = 0; i < P.count; i++) {
+                const key = Math.round(P.getX(i) * 50) + '_' + Math.round(P.getY(i) * 50) + '_' + Math.round(P.getZ(i) * 50);
+                let g = map.get(key);
+                if (g === undefined) { g = G++; map.set(key, g); }
+                gid[i] = g;
+            }
+            const pos = new Float32Array(G * 3), d = new Float32Array(G * 3);
+            for (let i = 0; i < P.count; i++) {
+                const g = gid[i] * 3;
+                pos[g] = P.getX(i); pos[g + 1] = P.getY(i); pos[g + 2] = P.getZ(i);
+                d[g] = D.getX(i) - (rel ? 0 : P.getX(i));
+                d[g + 1] = D.getY(i) - (rel ? 0 : P.getY(i));
+                d[g + 2] = D.getZ(i) - (rel ? 0 : P.getZ(i));
+            }
+            // Nachbarn + gerissene Flächen finden
+            const nb = Array.from({ length: G }, () => new Set());
+            const free = new Uint8Array(G);
+            const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+            const area = (o) => {
+                const i0 = gid[idx[o]] * 3, i1 = gid[idx[o + 1]] * 3, i2 = gid[idx[o + 2]] * 3;
+                const A = (k) => { a.set(pos[i0] + k * d[i0], pos[i0 + 1] + k * d[i0 + 1], pos[i0 + 2] + k * d[i0 + 2]);
+                    b.set(pos[i1] + k * d[i1], pos[i1 + 1] + k * d[i1 + 1], pos[i1 + 2] + k * d[i1 + 2]);
+                    c.set(pos[i2] + k * d[i2], pos[i2 + 1] + k * d[i2 + 1], pos[i2 + 2] + k * d[i2 + 2]);
+                    return b.sub(a).cross(c.sub(a)).length(); };
+                return A(1) / Math.max(A(0), 1e-9);
+            };
+            let torn = 0;
+            for (let o = 0; o < idx.length; o += 3) {
+                const g0 = gid[idx[o]], g1 = gid[idx[o + 1]], g2 = gid[idx[o + 2]];
+                nb[g0].add(g1).add(g2); nb[g1].add(g0).add(g2); nb[g2].add(g0).add(g1);
+                if (area(o) > 2.5) { free[g0] = free[g1] = free[g2] = 1; torn++; }
+            }
+            if (!torn) return;
+            // Bereich um die Risse etwas erweitern (weicher Übergang)
+            for (let ring = 0; ring < 5; ring++) {
+                const add = [];
+                for (let g = 0; g < G; g++) if (free[g]) for (const n of nb[g]) if (!free[n]) add.push(n);
+                add.forEach((n) => { free[n] = 1; });
+            }
+            // harmonisch glätten: fester Oberkopf + fester Unterkiefer, dazwischen weich
+            const nbArr = nb.map((s) => Int32Array.from(s));
+            const tmpD = new Float32Array(d);
+            for (let it = 0; it < 250; it++) {
+                for (let g = 0; g < G; g++) {
+                    if (!free[g]) continue;
+                    const n = nbArr[g];
+                    let x = 0, y = 0, z = 0;
+                    for (let k = 0; k < n.length; k++) { const m = n[k] * 3; x += d[m]; y += d[m + 1]; z += d[m + 2]; }
+                    tmpD[g * 3] = x / n.length; tmpD[g * 3 + 1] = y / n.length; tmpD[g * 3 + 2] = z / n.length;
+                }
+                d.set(tmpD);
+            }
+            for (let i = 0; i < P.count; i++) {
+                const g = gid[i] * 3;
+                D.setXYZ(i, d[g] + (rel ? 0 : P.getX(i)), d[g + 1] + (rel ? 0 : P.getY(i)), d[g + 2] + (rel ? 0 : P.getZ(i)));
+            }
+            D.needsUpdate = true;
+        }
+
+        function setupMouth(mesh) {
+            mouth.mesh = mesh;
+            mouth.index = mesh.morphTargetDictionary['MundAuf'];
+            const geo = mesh.geometry;
+            // Shape-Key-Normalen würden nach dem Glätten nicht mehr passen
+            if (geo.morphAttributes.normal) delete geo.morphAttributes.normal;
+            smoothMorph(geo, mouth.index);
+
+            // Mundposition aus dem Shape Key ableiten: die obersten stark bewegten Punkte = Unterlippe
+            const P = geo.attributes.position, D = geo.morphAttributes.position[mouth.index];
+            const rel = geo.morphTargetsRelative;
+            const dl = [];
+            let max = 0;
+            for (let i = 0; i < P.count; i++) {
+                const dx = D.getX(i) - (rel ? 0 : P.getX(i)), dy = D.getY(i) - (rel ? 0 : P.getY(i)), dz = D.getZ(i) - (rel ? 0 : P.getZ(i));
+                const L = Math.hypot(dx, dy, dz);
+                max = Math.max(max, L);
+                dl.push([i, L, dx, dy, dz]);
+            }
+            const moving = dl.filter((e) => e[1] > max * 0.6).sort((p, q) => P.getY(q[0]) - P.getY(p[0]));
+            const top = moving.slice(0, Math.max(5, Math.floor(moving.length * 0.08)))
+                .filter((e) => P.getZ(e[0]) > P.getZ(moving[0][0]) - 20); // nur die Vorderseite
+            const lip = new THREE.Vector3(), del = new THREE.Vector3();
+            for (const e of top) { lip.x += P.getX(e[0]); lip.y += P.getY(e[0]); lip.z += P.getZ(e[0]); del.x += e[2]; del.y += e[3]; del.z += e[4]; }
+            lip.divideScalar(top.length); del.divideScalar(top.length);
+
+            head.root.updateMatrixWorld(true);
+            mouth.restTop.copy(lip).applyMatrix4(mesh.matrixWorld);
+            mouth.openDelta.copy(del).transformDirection(mesh.matrixWorld).multiplyScalar(del.length() * mesh.matrixWorld.getMaxScaleOnAxis());
+            // Mundpunkt auf die Kollisions-Oberfläche legen, damit Gurken ihn auch erreichen
+            const r = mouth.restTop, A = head.axes;
+            const ez = head.center.z + A.z * Math.sqrt(Math.max(0, 1 - (r.x / A.x) ** 2 - ((r.y - head.center.y) / A.y) ** 2));
+            r.z = Math.max(r.z, ez - 0.05);
         }
 
         new GLTFLoader().load('kopf.glb',
@@ -331,10 +456,28 @@
         const target = new THREE.Vector3(3.5, 0, planeZ);
         const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
 
+        const eo = new THREE.Vector3(), ed = new THREE.Vector3(), en = new THREE.Vector3();
         function updateTarget() {
             raycaster.setFromCamera(ndc, camera);
+            const ray = raycaster.ray;
+            // Über dem Kopf: Gurke gleitet auf der Gesichtsoberfläche und drückt leicht hinein
+            if (head.ready && mode === 'steer') {
+                const A = head.axes;
+                eo.copy(ray.origin).sub(head.center).divide(A);
+                ed.copy(ray.direction).divide(A);
+                const a = ed.dot(ed), b = 2 * eo.dot(ed), c = eo.dot(eo) - 1;
+                const disc = b * b - 4 * a * c;
+                if (disc > 0) {
+                    const tHit = (-b - Math.sqrt(disc)) / (2 * a);
+                    target.copy(ray.origin).addScaledVector(ray.direction, tHit);
+                    en.copy(target).sub(head.center).divide(A).divide(A).normalize();
+                    target.addScaledVector(en, pickle.radius - 0.12);
+                    target.z += planeZ - 0.8; // Mausrad wirkt weiterhin
+                    return;
+                }
+            }
             plane.constant = -planeZ;
-            raycaster.ray.intersectPlane(plane, target);
+            ray.intersectPlane(plane, target);
         }
         const setNdc = (e) => ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
         addEventListener('pointermove', setNdc);
@@ -396,6 +539,7 @@
             ripIdx = (ripIdx + 1) % NRIP;
 
             shake = Math.max(shake, CFG.cameraShake * s * s);
+            mouth.oh = Math.max(mouth.oh, CFG.ohOnHit * (0.4 + 0.6 * s));
             playSquish(s);
         }
 
@@ -575,6 +719,7 @@
                 s.age += dt;
                 s.vel.y -= CFG.shotGravity * dt;
                 s.pos.addScaledVector(s.vel, dt);
+                if (trySwallow(s)) { scene.remove(s.root); shots.splice(i, 1); continue; }
                 const hit = collide(s, CFG.shotMass, 3, CFG.shotBounce, (str) => { s.sq.v -= 14 * Math.min(1.5, str / 8); });
                 if (hit > 2) s.spin.multiplyScalar(1.6).add(sv1.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(8));
                 s.axis.applyAxisAngle(sv2.copy(s.spin).normalize(), s.spin.length() * dt).normalize();
@@ -620,6 +765,127 @@
             g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
             n.connect(hp).connect(g2).connect(master);
             n.start(t, Math.random() * 0.3); n.stop(t + 0.06);
+        }
+
+        // ================== MUND-VERHALTEN ==================
+        const mv1 = new THREE.Vector3(), mv2 = new THREE.Vector3(), mAng = new THREE.Vector3();
+
+        function updateMouthWorld() {
+            const anchor = U.uAnchor.value;
+            mv1.copy(mouth.restTop).addScaledVector(mouth.openDelta, 0.5 * mouth.x);  // Mitte der Öffnung
+            const h = heightOf(mv1);
+            mouth.world.copy(mv1).sub(anchor);
+            rotateAA(mouth.world, angleAt(h, mAng), 1);
+            mouth.world.add(anchor);
+        }
+
+        // Mini-Gurke im offenen Mund? -> schlucken
+        function trySwallow(s) {
+            if (!mouth.mesh || mouth.x < 0.35) return false;
+            if (s.pos.distanceTo(mouth.world) > CFG.mouthRadius * (0.6 + 0.4 * mouth.x)) return false;
+            mouth.chew = 1.1;
+            mouth.cooldown = 0.25;
+            squash.v += 0.6;
+            addWobble(mv2.copy(mouth.restTop), mv1.set(0, -0.6, -0.4));
+            playGulp();
+            return true;
+        }
+
+        function stepMouth(dt, t) {
+            if (!mouth.mesh) return;
+            updateMouthWorld();
+            mouth.cooldown = Math.max(0, mouth.cooldown - dt);
+            mouth.oh *= Math.exp(-3.5 * dt);
+
+            // Vorfreude: Gurke(n) in der Nähe des Mundes?
+            let want = 0;
+            if (mode === 'steer') {
+                // nächstes Gurken-Ende zum Mund
+                let dmin = Infinity;
+                for (const f of [-1, 1]) {
+                    mv1.copy(pickle.pos).addScaledVector(pickle.axis, f * pickle.half);
+                    dmin = Math.min(dmin, mv1.distanceTo(mouth.world) - pickle.radius);
+                }
+                const inFront = pickle.pos.z > mouth.world.z - 0.3;
+                if (inFront) want = THREE.MathUtils.clamp((CFG.mouthReach - dmin) / (CFG.mouthReach - 0.4), 0, 1);
+
+                // Zuschnappen, wenn die Gurke im offenen Mund ist
+                if (dmin < CFG.mouthRadius && mouth.x > 0.55 && mouth.cooldown === 0 && inFront) chomp();
+            } else {
+                for (const s of shots) {
+                    mv1.copy(mouth.world).sub(s.pos);
+                    const dist = mv1.length();
+                    if (dist < 3.5 && s.vel.dot(mv1) > 0.6 * s.vel.length() * dist) want = Math.max(want, 1 - dist / 3.5 + 0.35);
+                }
+                want = Math.min(1, want);
+            }
+            mouth.want += (want - mouth.want) * Math.min(1, 6 * dt);
+
+            // Zielöffnung
+            let target = Math.max(mouth.want, mouth.oh);
+            let k = 160, c = 9;                                     // weich & wabbelig
+            if (mouth.chomp > 0) { mouth.chomp -= dt; target = 0; k = 1400; c = 30; }   // zack zu
+            else if (mouth.chew > 0) {
+                mouth.chew -= dt;
+                target = 0.08 + 0.22 * (0.5 + 0.5 * Math.sin(t * 17));   // mampf mampf
+                k = 900; c = 25;
+            }
+            target = Math.min(target, 1) * CFG.mouthMaxOpen;
+            mouth.v += (k * (target - mouth.x) - c * mouth.v) * dt;
+            mouth.x = THREE.MathUtils.clamp(mouth.x + mouth.v * dt, 0, 1.05);
+        }
+
+        function chomp() {
+            mouth.chomp = 0.35;
+            mouth.cooldown = 1.0;
+            mouth.want = 0;
+            // Gurke wird weggeschnappt/zurückgestoßen
+            mv1.copy(pickle.pos).sub(mouth.world).setZ(Math.abs(pickle.pos.z - mouth.world.z) + 0.6).normalize();
+            pickle.vel.addScaledVector(mv1, 9);
+            pSquash.v -= CFG.pickleSquash * 30;
+            squash.v += 1.2;
+            shake = Math.max(shake, CFG.cameraShake * 0.6);
+            playChomp();
+        }
+
+        // Mampf-Geräusche
+        function playChomp() {
+            if (!actx || actx.state !== 'running') return;
+            const t = actx.currentTime;
+            for (let k = 0; k < 3; k++) {                       // knackiges Crunch
+                const n = actx.createBufferSource(), bp = actx.createBiquadFilter(), g = actx.createGain();
+                const tk = t + k * 0.025 + Math.random() * 0.01;
+                n.buffer = noiseBuf;
+                bp.type = 'bandpass'; bp.Q.value = 1.5; bp.frequency.value = 2200 + Math.random() * 1800;
+                g.gain.setValueAtTime(0.0001, tk);
+                g.gain.exponentialRampToValueAtTime(0.45, tk + 0.003);
+                g.gain.exponentialRampToValueAtTime(0.0001, tk + 0.05);
+                n.connect(bp).connect(g).connect(master);
+                n.start(tk, Math.random() * 0.4); n.stop(tk + 0.06);
+            }
+            const o = actx.createOscillator(), g2 = actx.createGain();     // Zähne-Klack
+            o.type = 'square';
+            o.frequency.setValueAtTime(320, t);
+            o.frequency.exponentialRampToValueAtTime(90, t + 0.04);
+            g2.gain.setValueAtTime(0.2, t);
+            g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+            o.connect(g2).connect(master);
+            o.start(t); o.stop(t + 0.07);
+        }
+
+        function playGulp() {
+            if (!actx || actx.state !== 'running') return;
+            const t = actx.currentTime + 0.05;
+            const o = actx.createOscillator(), g = actx.createGain(), lp = actx.createBiquadFilter();
+            o.type = 'sine';
+            o.frequency.setValueAtTime(420, t);
+            o.frequency.exponentialRampToValueAtTime(90, t + 0.16);
+            lp.type = 'lowpass'; lp.frequency.value = 700;
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(0.6, t + 0.02);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+            o.connect(lp).connect(g).connect(master);
+            o.start(t); o.stop(t + 0.25);
         }
 
         // ================== PHYSIK ==================
@@ -724,6 +990,7 @@
             }
 
             stepShots(dt);
+            stepMouth(dt, t);
 
             // --- Punchingball-Feder (kippt um den festen Punkt unten) ---
             tiltPrevVel.copy(head.tiltVel);
@@ -800,6 +1067,7 @@
             camera.position.set((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake, 7);
 
             renderShots();
+            if (mouth.mesh) mouth.mesh.morphTargetInfluences[mouth.index] = mouth.x;
 
             U.uCapR.value = pickle.radius * 1.05;
             if (mode === 'steer') {
