@@ -109,6 +109,10 @@
             rageSweep: 0.75,        // wie weit er den Kopf nach links/rechts schwenkt (Radiant)
             rageSweepSpeed: 2.6,    // wie schnell er schwenkt
 
+            // Button oben rechts
+            websiteUrl: 'https://www.moritzsass.com/',
+            websiteLabel: 'moritzsass.com →',
+
             // Mund
             mouthReach: 1.9,        // ab dieser Entfernung öffnet er sich für die Gurke
             mouthRadius: 0.45,      // so nah muss eine Gurke an die Mundmitte zum Schnappen/Schlucken
@@ -770,7 +774,25 @@
         swapBtn.style.cssText = btnCss + ';background:transparent;color:rgba(128,128,128,.95)';
         swapBtn.addEventListener('pointerdown', (e) => { e.stopPropagation(); initAudio(); toggleSwap(); });
         ui.append(sep, swapBtn);
-        document.body.appendChild(ui);
+
+        // Primärer Button zur Website – ganz oben rechts, Modus-Schalter links daneben
+        const topbar = document.createElement('div');
+        topbar.style.cssText = 'position:fixed;top:14px;right:14px;left:14px;display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:8px;z-index:10;pointer-events:none';
+        ui.style.position = 'static';
+        ui.style.pointerEvents = 'auto';
+        const siteBtn = document.createElement('a');
+        siteBtn.href = CFG.websiteUrl;
+        siteBtn.target = '_top';              // verlässt auch ein einbettendes iframe
+        siteBtn.rel = 'noopener';
+        siteBtn.textContent = CFG.websiteLabel;
+        siteBtn.style.cssText = 'pointer-events:auto;display:inline-block;padding:9px 18px;border-radius:999px;background:#111;color:#fff;'
+            + 'font:600 13px sans-serif;letter-spacing:.01em;text-decoration:none;cursor:pointer;white-space:nowrap;'
+            + 'box-shadow:0 2px 10px rgba(0,0,0,.18);transition:transform .15s,box-shadow .15s,background .15s';
+        siteBtn.addEventListener('pointerenter', () => { siteBtn.style.transform = 'translateY(-1px)'; siteBtn.style.boxShadow = '0 4px 16px rgba(0,0,0,.25)'; siteBtn.style.background = '#000'; });
+        siteBtn.addEventListener('pointerleave', () => { siteBtn.style.transform = ''; siteBtn.style.boxShadow = '0 2px 10px rgba(0,0,0,.18)'; siteBtn.style.background = '#111'; });
+        siteBtn.addEventListener('pointerdown', (e) => e.stopPropagation());   // kein Schuss beim Klick
+        topbar.append(ui, siteBtn);
+        document.body.appendChild(topbar);
         addEventListener('keydown', (e) => { if (e.key === 't' || e.key === 'T') toggleSwap(); });
 
         function setMode(m) {
@@ -945,8 +967,12 @@
         const rageUi = document.createElement('div');
         rageUi.innerHTML = '<span style="font-size:14px">😠</span><div style="flex:1;height:6px;border-radius:3px;background:rgba(128,128,128,.25);overflow:hidden"><div style="height:100%;width:0%;border-radius:3px"></div></div>';
         rageUi.style.cssText = 'position:fixed;top:54px;right:20px;width:150px;display:flex;align-items:center;gap:7px;pointer-events:none;z-index:10;transition:transform .1s';
-        const rageFill = rageUi.querySelector('div > div');
+        const rageFill = rageUi.children[1].firstElementChild;   // der Füllbalken in der Schiene
         document.body.appendChild(rageUi);
+        // Wut-Leiste sitzt immer direkt unter der Button-Leiste (auch wenn die auf dem Handy umbricht)
+        const placeRage = () => { rageUi.style.top = (topbar.getBoundingClientRect().bottom + 10) + 'px'; };
+        placeRage();
+        addEventListener('resize', placeRage);
 
         function addRage(x) {
             if (rage.phase) return;
